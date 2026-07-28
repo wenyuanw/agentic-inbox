@@ -15,13 +15,14 @@ import {
 import { EnvelopeIcon, PlusIcon, TrashIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { type FormEvent, useEffect, useRef, useState } from "react";
-import { Link as RouterLink } from "react-router";
+import { Link as RouterLink, useNavigate } from "react-router";
 import api from "~/services/api";
 import {
 	useCreateMailbox,
 	useDeleteMailbox,
 	useMailboxes,
 } from "~/queries/mailboxes";
+import { useSetupStatus } from "~/queries/setup";
 import { queryKeys } from "~/queries/keys";
 
 export function meta() {
@@ -29,7 +30,9 @@ export function meta() {
 }
 
 export default function HomeRoute() {
+	const navigate = useNavigate();
 	const toastManager = useKumoToastManager();
+	const { data: setupStatus, isLoading: setupLoading } = useSetupStatus();
 	const { data: mailboxes = [], refetch: refetchMailboxes, isFetched: mailboxesFetched } = useMailboxes();
 	const createMailbox = useCreateMailbox();
 	const deleteMailbox = useDeleteMailbox();
@@ -42,6 +45,18 @@ export default function HomeRoute() {
 
 	const domains = configData?.domains ?? [];
 	const emailAddresses = configData?.emailAddresses ?? [];
+
+	// Redirect to setup wizard if not configured
+	useEffect(() => {
+		if (setupLoading || !setupStatus) return;
+		if (!setupStatus.completed) {
+			const envDomains = configData?.domains ?? [];
+			const needsSetup = envDomains.length === 0 || envDomains.every((d) => d === "example.com");
+			if (needsSetup) {
+				navigate("/setup", { replace: true });
+			}
+		}
+	}, [setupLoading, setupStatus, configData, navigate]);
 
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
 	const [newPrefix, setNewPrefix] = useState("");
@@ -137,7 +152,7 @@ export default function HomeRoute() {
 			}))
 		: mailboxes;
 
-	const isLoading = !configData;
+	const isLoading = !configData || setupLoading;
 
 	return (
 		<div className="min-h-screen bg-kumo-recessed">

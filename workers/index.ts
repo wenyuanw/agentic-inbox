@@ -6,7 +6,9 @@ import { type Context, Hono } from "hono";
 import { cors } from "hono/cors";
 import PostalMime from "postal-mime";
 import { z } from "zod";
-import { sendEmail } from "./email-sender";
+import { dispatchEmail } from "./email-sender";
+import { getEffectiveDomains, getEffectiveEmailAddresses } from "./lib/setup-config";
+import { getSetupStatus, runSetup, validateCredentials } from "./lib/setup-service";
 import { storeAttachments, type StoredAttachment } from "./lib/attachments";
 import {
 	validateSender,
@@ -85,11 +87,43 @@ app.use("/api/v1/mailboxes/:mailboxId/*", requireMailbox);
 
 // -- Config ---------------------------------------------------------
 
-app.get("/api/v1/config", (c) => {
-	const domainsRaw = c.env.DOMAINS || "";
-	const domains = domainsRaw.split(",").map((d) => d.trim()).filter(Boolean);
-	const emailAddresses = c.env.EMAIL_ADDRESSES ?? [];
-	return c.json({ domains, emailAddresses });
+app.get("/api/v1/config", async (c) => {
+	const domains = await getEffectiveDomains(c.env);
+	const emailAddresses = await getEffectiveEmailAddresses(c.env);
+	const setupStatus = await getSetupStatus(c.env);
+	return c.json({ domains, emailAddresses, setupCompleted: setupStatus.completed });
+});
+
+// -- Setup wizard ---------------------------------------------------
+
+app.get("/api/v1/setup/status", async (c) => {
+	return c.json(await getSetupStatus(c.env));
+});
+
+app.post("/api/v1/setup/validate", async (c) => {
+	const { cloudflareToken, resendApiKey, domain } = (await c.req.json()) as {
+		cloudflareToken?: string;
+		resendApiKey?: string;
+		domain?: string;
+	};
+	if (!cloudflareToken || !resendApiKey) {
+		return c.json({ error: "请提供 Cloudflare Token 和 Resend API Key" }, 400);
+	}
+	return c.json(await validateCredentials(cloudflareToken, resendApiKey, domain));
+});
+
+app.post("/api/v1/setup/run", async (c) => {
+	const { cloudflareToken, resendApiKey, domain } = (await c.req.json()) as {
+		cloudflareToken?: string;
+		resendApiKey?: string;
+		domain?: string;
+	};
+	if (!cloudflareToken || !resendApiKey || !domain) {
+		return c.json({ error: "请提供 Cloudflare Token、Resend API Key 和域名" }, 400);
+	}
+	const workerName = c.env.WORKER_NAME || "agentic-inbox";
+	const result = await runSetup(c.env, { cloudflareToken, resendApiKey, domain, workerName });
+	return c.json(result, result.success ? 200 : 422);
 });
 
 // -- Mailboxes ------------------------------------------------------
@@ -202,7 +236,7 @@ app.post("/api/v1/mailboxes/:mailboxId/emails", async (c: AppContext) => {
 	}, attachmentData);
 
 	c.executionCtx.waitUntil(
-		sendEmail(c.env.EMAIL, {
+		dispatchEmail(c.env, {
 			to, cc, bcc, from, subject, html, text,
 			attachments: attachments?.map((att) => ({ content: att.content, filename: att.filename, type: att.type, disposition: att.disposition || "attachment", contentId: att.contentId })),
 			...(in_reply_to ? { headers: buildThreadingHeaders(in_reply_to, references || []) } : {}),

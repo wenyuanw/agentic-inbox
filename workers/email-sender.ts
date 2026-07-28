@@ -3,12 +3,15 @@
 //     https://opensource.org/licenses/Apache-2.0
 
 /**
- * Email sending via Cloudflare Email Service binding.
+ * Email sending via Resend API or Cloudflare Email Service binding.
  *
- * Uses the `send_email` Worker binding (`env.EMAIL.send()`) to send emails.
- *
- * See: https://developers.cloudflare.com/email-service/api/send-emails/workers-api/
+ * When setup is completed with Resend, uses Resend API.
+ * Otherwise falls back to the `send_email` Worker binding.
  */
+
+import { sendViaResend } from "./lib/resend-api";
+import { getSetupConfig } from "./lib/setup-config";
+import type { Env } from "./types";
 
 export interface SendEmailParams {
 	to: string | string[];
@@ -31,11 +34,6 @@ export interface SendEmailParams {
 
 /**
  * Send an email using the Cloudflare Email Service binding.
- *
- * @param binding  - The `EMAIL` SendEmail binding from env
- * @param params   - Email parameters (to, from, subject, body, etc.)
- * @returns The send result with messageId
- * @throws On validation or delivery errors (error has `.code` property)
  */
 export async function sendEmail(
 	binding: SendEmail,
@@ -69,4 +67,40 @@ export async function sendEmail(
 
 	const result = await binding.send(message as any);
 	return { messageId: result.messageId };
+}
+
+/**
+ * Dispatch email via the configured provider (Resend or Cloudflare).
+ */
+export async function dispatchEmail(
+	env: Env,
+	params: SendEmailParams,
+): Promise<{ messageId: string }> {
+	const setup = await getSetupConfig(env.BUCKET);
+
+	if (setup?.sendProvider === "resend" && setup.resendApiKey) {
+		const replyTo = typeof params.replyTo === "string"
+			? params.replyTo
+			: params.replyTo?.email;
+
+		const result = await sendViaResend(setup.resendApiKey, {
+			to: params.to,
+			from: params.from,
+			subject: params.subject,
+			html: params.html,
+			text: params.text,
+			cc: params.cc,
+			bcc: params.bcc,
+			reply_to: replyTo,
+			headers: params.headers,
+			attachments: params.attachments?.map((att) => ({
+				content: att.content,
+				filename: att.filename,
+				content_type: att.type,
+			})),
+		});
+		return { messageId: result.id };
+	}
+
+	return sendEmail(env.EMAIL, params);
 }

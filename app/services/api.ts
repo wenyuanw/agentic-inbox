@@ -92,12 +92,48 @@ interface EmailListResponse {
 	totalCount: number;
 }
 
+export interface SetupStep {
+	id: string;
+	label: string;
+	status: "pending" | "running" | "done" | "error";
+	message?: string;
+}
+
+export interface SetupStatus {
+	completed: boolean;
+	domains: string[];
+	sendProvider?: string;
+	routingConfigured: boolean;
+	resendVerified: boolean;
+	steps: SetupStep[];
+}
+
+export interface ValidateSetupResult {
+	valid: boolean;
+	cloudflare: { ok: boolean; message?: string };
+	resend: { ok: boolean; message?: string };
+	zones?: { id: string; name: string }[];
+}
+
+export interface RunSetupResult {
+	success: boolean;
+	steps: SetupStep[];
+	error?: string;
+}
+
 // ---------- API client ----------
 
 const api = {
 	// Config
 	getConfig: () =>
-		get<{ domains: string[]; emailAddresses: string[] }>("/api/v1/config"),
+		get<{ domains: string[]; emailAddresses: string[]; setupCompleted?: boolean }>("/api/v1/config"),
+
+	// Setup
+	getSetupStatus: () => get<SetupStatus>("/api/v1/setup/status"),
+	validateSetup: (params: { cloudflareToken: string; resendApiKey: string; domain?: string }) =>
+		post<ValidateSetupResult>("/api/v1/setup/validate", params),
+	runSetup: (params: { cloudflareToken: string; resendApiKey: string; domain: string }) =>
+		post<RunSetupResult>("/api/v1/setup/run", params),
 
 	// Mailboxes
 	listMailboxes: () => get<Mailbox[]>("/api/v1/mailboxes"),
