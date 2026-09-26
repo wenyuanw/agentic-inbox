@@ -1,3 +1,4 @@
+import { useI18n } from "~/hooks/useI18n";
 import { Dialog } from "@cloudflare/kumo";
 import {
 	ArchiveIcon,
@@ -14,7 +15,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router";
-import { Folders, getFolderDisplayName } from "shared/folders";
+import { Folders } from "shared/folders";
 import EmailRow from "~/components/EmailRow";
 import MailIconButton from "~/components/MailIconButton";
 import MailboxSplitView from "~/components/MailboxSplitView";
@@ -56,6 +57,8 @@ const EMPTY: Record<string, [string, string]> = {
 };
 
 export default function EmailListRoute() {
+	const { t, folderLabel, conversationCount } = useI18n();
+
 	const { mailboxId, folder = "inbox" } = useParams<{
 		mailboxId: string;
 		folder: string;
@@ -88,9 +91,10 @@ export default function EmailListRoute() {
 	const { data: folders = [] } = useFolders(mailboxId);
 	const emails = data?.emails || [];
 	const total = data?.totalCount || 0;
-	const folderName =
-		folders.find((item) => item.id === folder)?.name ||
-		getFolderDisplayName(folder);
+	const folderName = folderLabel(
+		folder,
+		folders.find((item) => item.id === folder)?.name,
+	);
 	const selection = emails.filter((email) => checked.has(email.id));
 	const allChecked = emails.length > 0 && selection.length === emails.length;
 	const selectAllRef = useRef<HTMLInputElement>(null);
@@ -154,18 +158,18 @@ export default function EmailListRoute() {
 			);
 			for (const email of threads.flat())
 				await deleteEmail.mutateAsync({ mailboxId, id: email.id });
-			showNotice({ message: "Deleted permanently" });
+			showNotice({ message: t("Deleted permanently") });
 			setDeleteTargets([]);
 			setChecked(new Set());
 		} catch {
 			showNotice({
-				message: "Some messages could not be deleted. Please try again.",
+				message: t("Some messages could not be deleted. Please try again."),
 			});
 		}
 	};
 	const emptyState = EMPTY[folder] || [
-		"This folder is empty",
-		"Move a message here to keep your conversations organized.",
+		t("This folder is empty"),
+		t("Move a message here to keep your conversations organized."),
 	];
 	return (
 		<MailboxSplitView selectedEmailId={selectedEmailId}>
@@ -179,7 +183,7 @@ export default function EmailListRoute() {
 						className="mail-checkbox"
 						checked={allChecked}
 						disabled={emails.length === 0}
-						aria-label="Select all conversations on this page"
+						aria-label={t("Select all conversations on this page")}
 						onChange={() =>
 							setChecked(
 								allChecked
@@ -192,13 +196,13 @@ export default function EmailListRoute() {
 				{selection.length ? (
 					<>
 						<span className="mail-selection-count">
-							{selection.length} selected
+							{t("{count} selected", { count: selection.length })}
 						</span>
 						{folder !== Folders.ARCHIVE &&
 							folder !== Folders.TRASH &&
 							folder !== Folders.DRAFT && (
 								<MailIconButton
-									label="Archive selected"
+									label={t("Archive selected")}
 									disabled={actions.busy}
 									onClick={() => void move(selection, Folders.ARCHIVE)}
 								>
@@ -208,8 +212,8 @@ export default function EmailListRoute() {
 						<MailIconButton
 							label={
 								folder === Folders.TRASH
-									? "Delete selected permanently"
-									: "Move selected to Trash"
+									? t("Delete selected permanently")
+									: t("Move selected to Trash")
 							}
 							disabled={actions.busy}
 							onClick={() => trash(selection)}
@@ -218,7 +222,7 @@ export default function EmailListRoute() {
 						</MailIconButton>
 						{folder === Folders.TRASH && (
 							<MailIconButton
-								label="Restore selected to Inbox"
+								label={t("Restore selected to Inbox")}
 								disabled={actions.busy}
 								onClick={() => void move(selection, Folders.INBOX)}
 							>
@@ -226,14 +230,14 @@ export default function EmailListRoute() {
 							</MailIconButton>
 						)}
 						<MailIconButton
-							label="Mark selected as read"
+							label={t("Mark selected as read")}
 							disabled={actions.busy}
 							onClick={() => void actions.markRead(selection, true)}
 						>
 							<EnvelopeOpenIcon size={20} />
 						</MailIconButton>
 						<MailIconButton
-							label="Mark selected as unread"
+							label={t("Mark selected as unread")}
 							disabled={actions.busy}
 							onClick={() => void actions.markRead(selection, false)}
 						>
@@ -242,7 +246,7 @@ export default function EmailListRoute() {
 					</>
 				) : (
 					<MailIconButton
-						label="Refresh mail"
+						label={t("Refresh mail")}
 						disabled={isFetching}
 						onClick={refresh}
 					>
@@ -255,18 +259,22 @@ export default function EmailListRoute() {
 				<div className="mail-pagination">
 					<span>
 						{total
-							? `${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, total)} of ${total}`
-							: "0 conversations"}
+							? t("{start}–{end} of {total}", {
+									start: (page - 1) * PAGE_SIZE + 1,
+									end: Math.min(page * PAGE_SIZE, total),
+									total,
+								})
+							: t("0 conversations")}
 					</span>
 					<MailIconButton
-						label="Previous page"
+						label={t("Previous page")}
 						disabled={page === 1}
 						onClick={() => setPage(page - 1)}
 					>
 						<CaretLeftIcon size={19} />
 					</MailIconButton>
 					<MailIconButton
-						label="Next page"
+						label={t("Next page")}
 						disabled={page * PAGE_SIZE >= total}
 						onClick={() => setPage(page + 1)}
 					>
@@ -281,13 +289,13 @@ export default function EmailListRoute() {
 				</h1>
 				<span>
 					{folder === "inbox"
-						? "A little less noise. A little more focus."
-						: `${total} conversation${total === 1 ? "" : "s"}`}
+						? t("A little less noise. A little more focus.")
+						: conversationCount(total)}
 				</span>
 			</div>
 			<div className="mail-list-scroll">
 				{isPending ? (
-					<div className="mail-list-skeleton" aria-label="Loading mail">
+					<div className="mail-list-skeleton" aria-label={t("Loading mail")}>
 						{Array.from({ length: 10 }, (_, index) => (
 							<div key={index}>
 								<span />
@@ -299,14 +307,14 @@ export default function EmailListRoute() {
 				) : isError ? (
 					<div className="mail-empty-state">
 						<EnvelopeSimpleIcon size={50} weight="thin" />
-						<h2>Couldn't load your mail</h2>
-						<p>Please try again in a moment.</p>
+						<h2>{t("Couldn't load your mail")}</h2>
+						<p>{t("Please try again in a moment.")}</p>
 						<button
 							type="button"
 							className="mail-primary-button"
 							onClick={() => void refetch()}
 						>
-							Try again
+							{t("Try again")}
 						</button>
 					</div>
 				) : emails.length ? (
@@ -341,8 +349,8 @@ export default function EmailListRoute() {
 						<div className="mail-empty-icon">
 							<TrayIcon size={42} weight="duotone" />
 						</div>
-						<h2>{emptyState[0]}</h2>
-						<p>{emptyState[1]}</p>
+						<h2>{t(emptyState[0])}</h2>
+						<p>{t(emptyState[1])}</p>
 						{["inbox", "sent", "draft"].includes(folder) && (
 							<button
 								className="mail-primary-button"
@@ -352,16 +360,14 @@ export default function EmailListRoute() {
 								}}
 							>
 								<PencilSimpleIcon size={18} />
-								Write a message
+								{t("Write a message")}
 							</button>
 						)}
 					</div>
 				)}
 			</div>
 			<div className="mail-list-footer">
-				<span>
-					{total} conversation{total === 1 ? "" : "s"}
-				</span>
+				<span>{conversationCount(total)}</span>
 				<span>Agentic Inbox</span>
 			</div>
 			<Dialog.Root
@@ -372,11 +378,12 @@ export default function EmailListRoute() {
 			>
 				<Dialog size="sm" className="p-6 mail-dialog">
 					<Dialog.Title className="text-lg mb-3">
-						Delete permanently?
+						{t("Delete permanently?")}
 					</Dialog.Title>
 					<Dialog.Description className="text-sm text-kumo-subtle mb-6">
-						These messages will be permanently deleted. You won't be able to
-						undo this.
+						{t(
+							"These messages will be permanently deleted. You won't be able to undo this.",
+						)}
 					</Dialog.Description>
 					<div className="flex justify-end gap-2">
 						<button
@@ -384,7 +391,7 @@ export default function EmailListRoute() {
 							className="mail-text-button"
 							onClick={() => setDeleteTargets([])}
 						>
-							Cancel
+							{t("Cancel")}
 						</button>
 						<button
 							type="button"
@@ -392,7 +399,7 @@ export default function EmailListRoute() {
 							disabled={deleteEmail.isPending}
 							onClick={() => void permanentlyDelete()}
 						>
-							Delete
+							{t("Delete")}
 						</button>
 					</div>
 				</Dialog>

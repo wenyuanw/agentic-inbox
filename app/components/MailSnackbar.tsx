@@ -1,8 +1,11 @@
+import { useI18n } from "~/hooks/useI18n";
 import { XIcon } from "@phosphor-icons/react";
 import { useEffect } from "react";
 import { useUIStore } from "~/hooks/useUIStore";
 
 export default function MailSnackbar() {
+	const { t } = useI18n();
+
 	const { notice, clearNotice } = useUIStore();
 	useEffect(() => {
 		if (!notice) return;
@@ -12,7 +15,7 @@ export default function MailSnackbar() {
 	if (!notice) return null;
 	return (
 		<div className="mail-snackbar" role="status">
-			<span>{notice.message}</span>
+			<span>{t(notice.message)}</span>
 			{notice.action && (
 				<button
 					type="button"
@@ -22,13 +25,13 @@ export default function MailSnackbar() {
 						notice.action?.();
 					}}
 				>
-					{notice.actionLabel || "Undo"}
+					{t(notice.actionLabel || "Undo")}
 				</button>
 			)}
 			<button
 				type="button"
 				className="mail-snackbar-close"
-				aria-label="Dismiss notification"
+				aria-label={t("Dismiss notification")}
 				onClick={clearNotice}
 			>
 				<XIcon size={18} />

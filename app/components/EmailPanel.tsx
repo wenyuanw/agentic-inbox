@@ -1,3 +1,4 @@
+import { useI18n } from "~/hooks/useI18n";
 import { Button, Dialog } from "@cloudflare/kumo";
 import {
 	ArrowBendUpLeftIcon,
@@ -25,6 +26,8 @@ import { useMailbox } from "~/queries/mailboxes";
 import type { Email } from "~/types";
 
 export default function EmailPanel({ emailId }: { emailId: string }) {
+	const { t } = useI18n();
+
 	const { mailboxId } = useParams<{ mailboxId: string }>();
 	const { data: email, isError, refetch } = useEmail(mailboxId, emailId);
 	const { data: thread = [] } = useThreadReplies(mailboxId, email?.thread_id);
@@ -119,20 +122,20 @@ export default function EmailPanel({ emailId }: { emailId: string }) {
 			);
 			if (results.some((result) => result.status === "rejected")) {
 				showNotice({
-					message: "Some messages could not be deleted. Please try again.",
+					message: t("Some messages could not be deleted. Please try again."),
 				});
 				return;
 			}
 			showNotice({
 				message: discard
-					? "Draft discarded"
-					: "Conversation deleted permanently",
+					? t("Draft discarded")
+					: t("Conversation deleted permanently"),
 			});
 			if (!discard || discard.id === email.id) closePanel();
 			setDiscard(null);
 			setDeleteOpen(false);
 		} catch {
-			showNotice({ message: "Could not delete. Please try again." });
+			showNotice({ message: t("Could not delete. Please try again.") });
 		}
 	};
 	if (!email)
@@ -140,22 +143,22 @@ export default function EmailPanel({ emailId }: { emailId: string }) {
 			<div className="mail-reader">
 				<div className="mail-reader-toolbar">
 					<button className="mail-text-button" onClick={closePanel}>
-						Back to list
+						{t("Back to list")}
 					</button>
 				</div>
 				{isError ? (
 					<div className="mail-empty-state">
-						<h2>Couldn’t open this message</h2>
-						<p>Please try again.</p>
+						<h2>{t("Couldn’t open this message")}</h2>
+						<p>{t("Please try again.")}</p>
 						<button
 							className="mail-primary-button"
 							onClick={() => void refetch()}
 						>
-							Retry
+							{t("Retry")}
 						</button>
 					</div>
 				) : (
-					<div className="mail-list-skeleton" aria-label="Loading message">
+					<div className="mail-list-skeleton" aria-label={t("Loading message")}>
 						{Array.from({ length: 6 }, (_, index) => (
 							<div key={index}>
 								<span />
@@ -194,7 +197,7 @@ export default function EmailPanel({ emailId }: { emailId: string }) {
 			/>
 			<div className="mail-reader-scroll">
 				<EmailPanelHeader
-					subject={email.subject || "(no subject)"}
+					subject={email.subject || t("(no subject)")}
 					messageCount={allMessages.length}
 					showThreadCount={allMessages.length > 1}
 				/>
@@ -244,7 +247,7 @@ export default function EmailPanel({ emailId }: { emailId: string }) {
 							icon={<ArrowBendUpLeftIcon size={18} />}
 							onClick={() => editDraft(email)}
 						>
-							Continue writing
+							{t("Continue writing")}
 						</Button>
 					) : (
 						<>
@@ -255,7 +258,7 @@ export default function EmailPanel({ emailId }: { emailId: string }) {
 									startCompose({ mode: "reply", originalEmail: replyTarget })
 								}
 							>
-								Reply
+								{t("Reply")}
 							</Button>
 							<Button
 								variant="secondary"
@@ -267,7 +270,7 @@ export default function EmailPanel({ emailId }: { emailId: string }) {
 									})
 								}
 							>
-								Reply all
+								{t("Reply all")}
 							</Button>
 							<Button
 								variant="secondary"
@@ -276,7 +279,7 @@ export default function EmailPanel({ emailId }: { emailId: string }) {
 									startCompose({ mode: "forward", originalEmail: replyTarget })
 								}
 							>
-								Forward
+								{t("Forward")}
 							</Button>
 						</>
 					)}
@@ -299,13 +302,15 @@ export default function EmailPanel({ emailId }: { emailId: string }) {
 			>
 				<Dialog size="sm" className="p-6 mail-dialog">
 					<Dialog.Title className="text-lg mb-3">
-						{discard ? "Discard this draft?" : "Delete permanently?"}
+						{discard ? t("Discard this draft?") : t("Delete permanently?")}
 					</Dialog.Title>
 					<Dialog.Description className="text-sm text-kumo-subtle mb-6">
 						{discard
-							? "The saved draft will be deleted."
-							: "This conversation will be permanently removed from Trash."}{" "}
-						This cannot be undone.
+							? t("The saved draft will be deleted.")
+							: t(
+									"This conversation will be permanently removed from Trash.",
+								)}{" "}
+						{t("This cannot be undone.")}
 					</Dialog.Description>
 					<div className="flex justify-end gap-2">
 						<button
@@ -315,7 +320,7 @@ export default function EmailPanel({ emailId }: { emailId: string }) {
 								setDeleteOpen(false);
 							}}
 						>
-							Cancel
+							{t("Cancel")}
 						</button>
 						<button
 							className="mail-primary-button"
@@ -323,10 +328,10 @@ export default function EmailPanel({ emailId }: { emailId: string }) {
 							onClick={() => void confirmDelete()}
 						>
 							{remove.isPending
-								? "Deleting…"
+								? t("Deleting…")
 								: discard
-									? "Discard"
-									: "Delete permanently"}
+									? t("Discard")
+									: t("Delete permanently")}
 						</button>
 					</div>
 				</Dialog>

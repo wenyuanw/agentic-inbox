@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 //     https://opensource.org/licenses/Apache-2.0
 
+import { useI18n } from "~/hooks/useI18n";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useUIStore } from "~/hooks/useUIStore";
 import api from "~/services/api";
@@ -22,16 +23,14 @@ export function useEmails(
 	params: Record<string, string>,
 	options?: { enabled?: boolean; refetchInterval?: number },
 ) {
-	const queryParams = params.folder
-		? { ...params, threaded: "true" }
-		: params;
+	const queryParams = params.folder ? { ...params, threaded: "true" } : params;
 
 	return useQuery<EmailListResponse>({
 		queryKey: mailboxId
 			? queryKeys.emails.list(mailboxId, queryParams)
 			: ["emails", "_disabled"],
 		queryFn: async () => {
-			const data = await api.listEmails(mailboxId!, queryParams) as
+			const data = (await api.listEmails(mailboxId!, queryParams)) as
 				| EmailListResponse
 				| Email[];
 			if (data && typeof data === "object" && "emails" in data) {
@@ -53,9 +52,10 @@ export function useEmail(
 	emailId: string | undefined,
 ) {
 	return useQuery<Email>({
-		queryKey: mailboxId && emailId
-			? queryKeys.emails.detail(mailboxId, emailId)
-			: ["emails", "_disabled_detail"],
+		queryKey:
+			mailboxId && emailId
+				? queryKeys.emails.detail(mailboxId, emailId)
+				: ["emails", "_disabled_detail"],
 		queryFn: () => api.getEmail(mailboxId!, emailId!) as Promise<Email>,
 		enabled: !!mailboxId && !!emailId,
 	});
@@ -68,22 +68,22 @@ export function useThreadReplies(
 	const qc = useQueryClient();
 
 	return useQuery<Email[]>({
-		queryKey: mailboxId && threadId
-			? queryKeys.emails.thread(mailboxId, threadId)
-			: ["emails", "_disabled_thread"],
+		queryKey:
+			mailboxId && threadId
+				? queryKeys.emails.thread(mailboxId, threadId)
+				: ["emails", "_disabled_thread"],
 		queryFn: async ({ signal }) => {
 			// Single request returns all thread emails with full bodies +
 			// attachments. Eliminates the previous N+1 pattern that fired
 			// a separate getEmail call per thread message.
-			const emails = await api.getThread(mailboxId!, threadId!, { signal }) as Email[];
+			const emails = (await api.getThread(mailboxId!, threadId!, {
+				signal,
+			})) as Email[];
 
 			// Populate individual email detail caches so clicking a thread
 			// message in the panel doesn't re-fetch.
 			for (const email of emails) {
-				qc.setQueryData(
-					queryKeys.emails.detail(mailboxId!, email.id),
-					email,
-				);
+				qc.setQueryData(queryKeys.emails.detail(mailboxId!, email.id), email);
 			}
 
 			return emails;
@@ -109,16 +109,15 @@ function useInvalidateEmailData() {
 export function useSendEmail() {
 	const invalidate = useInvalidateEmailData();
 	return useMutation({
-		mutationFn: ({
-			mailboxId,
-			email,
-		}: { mailboxId: string; email: unknown }) =>
+		mutationFn: ({ mailboxId, email }: { mailboxId: string; email: unknown }) =>
 			api.sendEmail(mailboxId, email),
 		onSuccess: (_data, { mailboxId }) => invalidate(mailboxId),
 	});
 }
 
 export function useUpdateEmail() {
+	const { t } = useI18n();
+
 	const qc = useQueryClient();
 	const showNotice = useUIStore((state) => state.showNotice);
 	return useMutation({
@@ -126,8 +125,11 @@ export function useUpdateEmail() {
 			mailboxId,
 			id,
 			data,
-		}: { mailboxId: string; id: string; data: unknown }) =>
-			api.updateEmail(mailboxId, id, data),
+		}: {
+			mailboxId: string;
+			id: string;
+			data: unknown;
+		}) => api.updateEmail(mailboxId, id, data),
 		onMutate: async ({ mailboxId, id, data }) => {
 			// Only target list queries (3rd key element is an object = params),
 			// NOT detail queries (string = emailId) or thread queries.
@@ -144,7 +146,10 @@ export function useUpdateEmail() {
 			});
 
 			// Snapshot current email list caches for rollback
-			const listQueries = qc.getQueriesData<{ emails: Email[]; totalCount: number }>({
+			const listQueries = qc.getQueriesData<{
+				emails: Email[];
+				totalCount: number;
+			}>({
 				queryKey: ["emails", mailboxId],
 				predicate: isListQuery,
 			});
@@ -164,13 +169,18 @@ export function useUpdateEmail() {
 			const detailKey = queryKeys.emails.detail(mailboxId, id);
 			const prevDetail = qc.getQueryData<Email>(detailKey);
 			if (prevDetail) {
-				qc.setQueryData(detailKey, { ...prevDetail, ...(data as Partial<Email>) });
+				qc.setQueryData(detailKey, {
+					...prevDetail,
+					...(data as Partial<Email>),
+				});
 			}
 
 			return { listQueries, prevDetail, detailKey };
 		},
 		onError: (_err, _vars, context) => {
-			showNotice({ message: "Could not update this message. Please try again." });
+			showNotice({
+				message: t("Could not update this message. Please try again."),
+			});
 			// Roll back optimistic updates on failure
 			if (context?.listQueries) {
 				for (const [key, cached] of context.listQueries) {
@@ -198,8 +208,10 @@ export function useMarkThreadRead() {
 		mutationFn: ({
 			mailboxId,
 			threadId,
-		}: { mailboxId: string; threadId: string }) =>
-			api.markThreadRead(mailboxId, threadId),
+		}: {
+			mailboxId: string;
+			threadId: string;
+		}) => api.markThreadRead(mailboxId, threadId),
 		onSuccess: (_data, { mailboxId }) => {
 			qc.invalidateQueries({ queryKey: ["search", mailboxId] });
 			qc.invalidateQueries({ queryKey: ["emails", mailboxId] });
@@ -213,10 +225,7 @@ export function useMarkThreadRead() {
 export function useDeleteEmail() {
 	const invalidate = useInvalidateEmailData();
 	return useMutation({
-		mutationFn: ({
-			mailboxId,
-			id,
-		}: { mailboxId: string; id: string }) =>
+		mutationFn: ({ mailboxId, id }: { mailboxId: string; id: string }) =>
 			api.deleteEmail(mailboxId, id),
 		onSuccess: (_data, { mailboxId }) => invalidate(mailboxId),
 	});
@@ -229,8 +238,11 @@ export function useMoveEmail() {
 			mailboxId,
 			id,
 			folderId,
-		}: { mailboxId: string; id: string; folderId: string }) =>
-			api.moveEmail(mailboxId, id, folderId),
+		}: {
+			mailboxId: string;
+			id: string;
+			folderId: string;
+		}) => api.moveEmail(mailboxId, id, folderId),
 		onSuccess: (_data, { mailboxId }) => invalidate(mailboxId),
 	});
 }
@@ -265,8 +277,11 @@ export function useReplyToEmail() {
 			mailboxId,
 			emailId,
 			email,
-		}: { mailboxId: string; emailId: string; email: unknown }) =>
-			api.replyToEmail(mailboxId, emailId, email),
+		}: {
+			mailboxId: string;
+			emailId: string;
+			email: unknown;
+		}) => api.replyToEmail(mailboxId, emailId, email),
 		onSuccess: (_data, { mailboxId }) => invalidate(mailboxId),
 	});
 }
@@ -278,8 +293,11 @@ export function useForwardEmail() {
 			mailboxId,
 			emailId,
 			email,
-		}: { mailboxId: string; emailId: string; email: unknown }) =>
-			api.forwardEmail(mailboxId, emailId, email),
+		}: {
+			mailboxId: string;
+			emailId: string;
+			email: unknown;
+		}) => api.forwardEmail(mailboxId, emailId, email),
 		onSuccess: (_data, { mailboxId }) => invalidate(mailboxId),
 	});
 }

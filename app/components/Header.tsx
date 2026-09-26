@@ -1,3 +1,4 @@
+import { useI18n } from "~/hooks/useI18n";
 import {
 	GearSixIcon,
 	ListIcon,
@@ -21,6 +22,8 @@ import MailBrand from "./MailBrand";
 import MailIconButton from "./MailIconButton";
 
 export default function Header() {
+	const { t } = useI18n();
+
 	const isMobile = useIsMobile();
 	const { mailboxId } = useParams<{ mailboxId: string }>();
 	const { data: mailbox } = useMailbox(mailboxId);
@@ -129,7 +132,7 @@ export default function Header() {
 		<header className="mail-header" inert={isMobile && isSidebarOpen}>
 			<div className="mail-header-brand">
 				<MailIconButton
-					label="Toggle navigation"
+					label={t("Toggle navigation")}
 					aria-expanded={isMobile ? isSidebarOpen : !isSidebarCollapsed}
 					onClick={() => {
 						if (window.matchMedia("(max-width: 767px)").matches)
@@ -150,14 +153,14 @@ export default function Header() {
 						search(searchQuery);
 					}}
 				>
-					<MailIconButton label="Search mail" type="submit">
+					<MailIconButton label={t("Search mail")} type="submit">
 						<MagnifyingGlassIcon size={22} />
 					</MailIconButton>
 					<input
 						ref={searchRef}
 						type="search"
-						aria-label="Search mail"
-						placeholder="Search mail"
+						aria-label={t("Search mail")}
+						placeholder={t("Search mail")}
 						value={searchQuery}
 						onChange={(event) => setSearchQuery(event.target.value)}
 						onKeyDown={(event) => {
@@ -169,13 +172,13 @@ export default function Header() {
 						}}
 					/>
 					{searchQuery && (
-						<MailIconButton label="Clear search" onClick={clearSearch}>
+						<MailIconButton label={t("Clear search")} onClick={clearSearch}>
 							<XIcon size={20} />
 						</MailIconButton>
 					)}
 					<MailIconButton
 						ref={filtersButtonRef}
-						label="Show search options"
+						label={t("Show search options")}
 						active={filtersOpen}
 						aria-expanded={filtersOpen}
 						aria-controls="mail-search-options"
@@ -199,9 +202,9 @@ export default function Header() {
 					>
 						<form onSubmit={filterSearch}>
 							<div className="mail-popover-heading">
-								Search options
+								{t("Search options")}
 								<MailIconButton
-									label="Close search options"
+									label={t("Close search options")}
 									onClick={() => {
 										setFiltersOpen(false);
 										filtersButtonRef.current?.focus();
@@ -211,19 +214,19 @@ export default function Header() {
 								</MailIconButton>
 							</div>
 							<label className="mail-filter-field">
-								From
+								{t("From")}
 								<input
 									value={from}
 									onChange={(event) => setFrom(event.target.value)}
-									placeholder="Name or email address"
+									placeholder={t("Name or email address")}
 								/>
 							</label>
 							<label className="mail-filter-field">
-								Subject
+								{t("Subject")}
 								<input
 									value={subject}
 									onChange={(event) => setSubject(event.target.value)}
-									placeholder="Words in the subject"
+									placeholder={t("Words in the subject")}
 								/>
 							</label>
 							<div className="mail-filter-checks">
@@ -233,7 +236,7 @@ export default function Header() {
 										checked={unread}
 										onChange={(event) => setUnread(event.target.checked)}
 									/>{" "}
-									Unread only
+									{t("Unread only")}
 								</label>
 								<label>
 									<input
@@ -241,13 +244,13 @@ export default function Header() {
 										checked={hasAttachment}
 										onChange={(event) => setHasAttachment(event.target.checked)}
 									/>{" "}
-									Has attachment
+									{t("Has attachment")}
 								</label>
 							</div>
 							<div className="mail-filter-footer">
-								<span>Tip: try from:name or is:starred</span>
+								<span>{t("Tip: try from:name or is:starred")}</span>
 								<button className="mail-primary-button" type="submit">
-									Search
+									{t("Search")}
 								</button>
 							</div>
 						</form>
@@ -257,7 +260,9 @@ export default function Header() {
 			<div className="mail-header-actions">
 				<MailIconButton
 					label={
-						isAgentPanelOpen ? "Close email assistant" : "Open email assistant"
+						isAgentPanelOpen
+							? t("Close email assistant")
+							: t("Open email assistant")
 					}
 					active={isAgentPanelOpen}
 					onClick={toggleAgentPanel}
@@ -266,7 +271,7 @@ export default function Header() {
 					<SparkleIcon size={21} />
 				</MailIconButton>
 				<MailIconButton
-					label="Settings"
+					label={t("Settings")}
 					active={isSettings}
 					onClick={() =>
 						navigate(
@@ -279,7 +284,9 @@ export default function Header() {
 				<button
 					type="button"
 					className="mail-account-avatar"
-					aria-label={`Switch mailbox (${mailbox?.email || mailboxId})`}
+					aria-label={t("Switch mailbox ({email})", {
+						email: mailbox?.email || mailboxId || "",
+					})}
 					title={mailbox?.email || mailboxId}
 					onClick={() => navigate("/")}
 				>

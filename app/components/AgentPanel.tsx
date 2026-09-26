@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 //     https://opensource.org/licenses/Apache-2.0
 
+import { useI18n } from "~/hooks/useI18n";
 import { Badge, Button, Loader, Tooltip } from "@cloudflare/kumo";
 import {
 	ArrowUpIcon,
@@ -71,6 +72,7 @@ function ToolCallBadge({
 	toolName: string;
 	state: string;
 }) {
+	const { t } = useI18n();
 	const info = TOOL_LABELS[toolName] || {
 		label: toolName,
 		icon: <WrenchIcon size={14} weight="bold" />,
@@ -83,7 +85,7 @@ function ToolCallBadge({
 	return (
 		<div className="flex items-center gap-1.5 py-1 px-2 rounded bg-kumo-fill/50 text-xs">
 			<span className="text-kumo-brand">{info.icon}</span>
-			<span className="text-kumo-strong">{info.label}</span>
+			<span className="text-kumo-strong">{t(info.label)}</span>
 			{isDone ? (
 				<CheckCircleIcon
 					size={12}
@@ -117,6 +119,8 @@ function DraftActions({
 	onEdit: () => void;
 	disabled: boolean;
 }) {
+	const { t } = useI18n();
+
 	return (
 		<div className="flex gap-1.5 mt-1">
 			<Button
@@ -126,7 +130,7 @@ function DraftActions({
 				onClick={onEdit}
 				disabled={disabled}
 			>
-				Edit & send in composer
+				{t("Edit & send in composer")}
 			</Button>
 		</div>
 	);
@@ -144,9 +148,7 @@ function MessageBubble({
 	const isUser = message.role === "user";
 
 	return (
-		<div
-			className={`flex gap-2 ${isUser ? "flex-row-reverse" : "flex-row"}`}
-		>
+		<div className={`flex gap-2 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
 			<div
 				className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
 					isUser
@@ -197,14 +199,10 @@ function MessageBubble({
 												</a>
 											),
 											p: ({ children }) => (
-												<p className="mb-2 last:mb-0">
-													{children}
-												</p>
+												<p className="mb-2 last:mb-0">{children}</p>
 											),
 											strong: ({ children }) => (
-												<strong className="font-semibold">
-													{children}
-												</strong>
+												<strong className="font-semibold">{children}</strong>
 											),
 											ul: ({ children }) => (
 												<ul className="list-disc pl-4 mb-2 last:mb-0 space-y-0.5">
@@ -216,9 +214,7 @@ function MessageBubble({
 													{children}
 												</ol>
 											),
-											li: ({ children }) => (
-												<li>{children}</li>
-											),
+											li: ({ children }) => <li>{children}</li>,
 											h1: ({ children }) => (
 												<h3 className="font-semibold text-sm mb-1">
 													{children}
@@ -302,14 +298,17 @@ function AgentChatConnected({
 	useAgent: typeof import("agents/react").useAgent;
 	useAgentChat: typeof import("@cloudflare/ai-chat/react").useAgentChat;
 }) {
+	const { t } = useI18n();
+
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const inputRef = useRef<HTMLTextAreaElement>(null);
 	const [inputValue, setInputValue] = useState("");
 	const { startCompose } = useUIStore();
 
 	const agent = useAgent({ agent: "EmailAgent", name: mailboxId });
-	const { messages, sendMessage, status, setMessages, stop } =
-		useAgentChat({ agent });
+	const { messages, sendMessage, status, setMessages, stop } = useAgentChat({
+		agent,
+	});
 	const isStreaming = status === "streaming" || status === "submitted";
 
 	useEffect(() => {
@@ -337,9 +336,9 @@ function AgentChatConnected({
 	};
 
 	const suggestedPrompts = [
-		"Show me the latest inbox emails",
-		"Any unread emails?",
-		"Draft a response to the latest email",
+		t("Show me the latest inbox emails"),
+		t("Any unread emails?"),
+		t("Draft a response to the latest email"),
 	];
 
 	return (
@@ -348,25 +347,23 @@ function AgentChatConnected({
 			<div className="flex items-center justify-between px-3 py-1.5 border-b border-kumo-line shrink-0">
 				<div className="flex items-center gap-2">
 					<Badge variant="beta">AI</Badge>
-					<span className="text-xs text-kumo-subtle">
-						Email Agent
-					</span>
+					<span className="text-xs text-kumo-subtle">{t("Email Agent")}</span>
 				</div>
 				<div className="flex items-center gap-1">
 					{isStreaming && <Loader size="sm" />}
 					{messages.length > 0 && (
-						<Tooltip content="Clear chat" asChild>
+						<Tooltip content={t("Clear chat")} asChild>
 							<Button
 								variant="ghost"
 								shape="square"
 								size="sm"
 								icon={<TrashIcon size={14} />}
 								onClick={() => {
-									if (window.confirm("Clear chat history?")) {
+									if (window.confirm(t("Clear chat history?"))) {
 										setMessages([]);
 									}
 								}}
-								aria-label="Clear chat"
+								aria-label={t("Clear chat")}
 							/>
 						</Tooltip>
 					)}
@@ -385,20 +382,17 @@ function AgentChatConnected({
 							/>
 						</div>
 						<p className="text-xs text-kumo-subtle text-center leading-relaxed px-4">
-							I can read emails, search conversations, and draft
-							replies.
+							{t("I can read emails, search conversations, and draft replies.")}
 						</p>
 						<div className="flex flex-col gap-1.5 w-full">
 							{suggestedPrompts.map((prompt) => (
 								<button
-									key={prompt}
+									key={t(prompt)}
 									type="button"
-									onClick={() =>
-										sendMessage({ text: prompt })
-									}
+									onClick={() => sendMessage({ text: t(prompt) })}
 									className="text-left px-3 py-2 rounded-lg border border-kumo-line text-xs text-kumo-strong hover:bg-kumo-tint hover:border-kumo-fill-hover transition-colors cursor-pointer bg-transparent"
 								>
-									{prompt}
+									{t(prompt)}
 								</button>
 							))}
 						</div>
@@ -410,8 +404,8 @@ function AgentChatConnected({
 								key={msg.id}
 								message={msg}
 								isStreaming={isStreaming}
-							onAction={(action) => {
-								if (action === "edit") {
+								onAction={(action) => {
+									if (action === "edit") {
 										// Extract draft data from the draft_reply tool result
 										let draftData: {
 											to?: string;
@@ -461,7 +455,7 @@ function AgentChatConnected({
 								<div className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-kumo-elevated border border-kumo-line rounded-bl-sm">
 									<Loader size="sm" />
 									<span className="text-xs text-kumo-subtle">
-										Thinking...
+										{t("Thinking...")}
 									</span>
 								</div>
 							</div>
@@ -480,7 +474,7 @@ function AgentChatConnected({
 							icon={<StopIcon size={14} weight="fill" />}
 							onClick={() => stop()}
 						>
-							Stop generating
+							{t("Stop generating")}
 						</Button>
 					</div>
 				) : (
@@ -492,17 +486,16 @@ function AgentChatConnected({
 							value={inputValue}
 							onChange={(e) => setInputValue(e.target.value)}
 							onKeyDown={handleKeyDown}
-							placeholder="Ask your email agent..."
+							placeholder={t("Ask your email agent...")}
 							rows={1}
-							aria-label="Chat message input"
+							aria-label={t("Chat message input")}
 							className="flex-1 resize-none rounded-lg border border-kumo-line bg-kumo-control px-3 py-2 text-xs text-kumo-default placeholder:text-kumo-subtle focus:outline-none focus:ring-1 focus:ring-kumo-ring min-h-[36px] max-h-[100px]"
 							style={{ height: "auto", overflow: "hidden" }}
 							onInput={(e) => {
 								const t = e.target as HTMLTextAreaElement;
 								t.style.height = "auto";
 								t.style.height = `${Math.min(t.scrollHeight, 100)}px`;
-								t.style.overflow =
-									t.scrollHeight > 100 ? "auto" : "hidden";
+								t.style.overflow = t.scrollHeight > 100 ? "auto" : "hidden";
 							}}
 						/>
 						<Button
@@ -512,7 +505,7 @@ function AgentChatConnected({
 							disabled={!inputValue.trim()}
 							icon={<ArrowUpIcon size={14} weight="bold" />}
 							onClick={handleSend}
-							aria-label="Send message"
+							aria-label={t("Send message")}
 						/>
 					</div>
 				)}
@@ -522,6 +515,8 @@ function AgentChatConnected({
 }
 
 export default function AgentPanel() {
+	const { t } = useI18n();
+
 	const { mailboxId } = useParams<{ mailboxId: string }>();
 	const [hooks, setHooks] = useState<{
 		useAgent: typeof import("agents/react").useAgent;
@@ -531,24 +526,23 @@ export default function AgentPanel() {
 	const [loadError, setLoadError] = useState<string | null>(null);
 
 	useEffect(() => {
-		Promise.all([
-			import("agents/react"),
-			import("@cloudflare/ai-chat/react"),
-		]).then(([a, c]) =>
-			setHooks({
-				useAgent: a.useAgent,
-				useAgentChat: c.useAgentChat,
-			}),
-		).catch((err) => {
-			console.error("Failed to load agent modules:", err);
-			setLoadError("Failed to connect to agent. Reload to retry.");
-		});
+		Promise.all([import("agents/react"), import("@cloudflare/ai-chat/react")])
+			.then(([a, c]) =>
+				setHooks({
+					useAgent: a.useAgent,
+					useAgentChat: c.useAgentChat,
+				}),
+			)
+			.catch((err) => {
+				console.error("Failed to load agent modules:", err);
+				setLoadError(t("Failed to connect to agent. Reload to retry."));
+			});
 	}, []);
 
 	if (loadError) {
 		return (
 			<div className="flex flex-col items-center justify-center h-full gap-2 px-4 text-center">
-				<span className="text-xs text-kumo-error">{loadError}</span>
+				<span className="text-xs text-kumo-error">{t(loadError)}</span>
 			</div>
 		);
 	}
@@ -557,9 +551,7 @@ export default function AgentPanel() {
 		return (
 			<div className="flex flex-col items-center justify-center h-full gap-2">
 				<Loader size="base" />
-				<span className="text-xs text-kumo-subtle">
-					Connecting...
-				</span>
+				<span className="text-xs text-kumo-subtle">{t("Connecting...")}</span>
 			</div>
 		);
 	}

@@ -1,3 +1,4 @@
+import { useI18n } from "~/hooks/useI18n";
 import { Dialog } from "@cloudflare/kumo";
 import {
 	ArrowsInSimpleIcon,
@@ -18,6 +19,8 @@ import MailIconButton from "./MailIconButton";
 import RichTextEditor from "./RichTextEditor";
 
 export default function ComposePanel() {
+	const { t } = useI18n();
+
 	const { mailboxId } = useParams<{ mailboxId: string }>();
 	const form = useComposeForm(mailboxId);
 	const isMobile = useIsMobile();
@@ -83,13 +86,13 @@ export default function ComposePanel() {
 				</button>
 				<div className="mail-compose-window-actions">
 					<MailIconButton
-						label={minimized ? "Restore composer" : "Minimize composer"}
+						label={minimized ? t("Restore composer") : t("Minimize composer")}
 						onClick={() => setMinimized(!minimized)}
 					>
 						<MinusIcon size={18} />
 					</MailIconButton>
 					<MailIconButton
-						label={maximized ? "Exit full screen" : "Expand composer"}
+						label={maximized ? t("Exit full screen") : t("Expand composer")}
 						onClick={() => {
 							setMaximized(!maximized);
 							setMinimized(false);
@@ -102,7 +105,7 @@ export default function ComposePanel() {
 						)}
 					</MailIconButton>
 					<MailIconButton
-						label="Save and close"
+						label={t("Save and close")}
 						disabled={busy}
 						onClick={() => void form.handleClose()}
 					>
@@ -135,7 +138,7 @@ export default function ComposePanel() {
 			>
 				{form.error && (
 					<div role="alert" className="mail-compose-error">
-						{form.error}
+						{t(form.error)}
 						<button
 							className="mail-text-button"
 							type="button"
@@ -144,19 +147,19 @@ export default function ComposePanel() {
 								if (form.saveState === "error") void form.handleSaveDraft();
 							}}
 						>
-							{form.saveState === "error" ? "Retry save" : "Dismiss"}
+							{form.saveState === "error" ? t("Retry save") : t("Dismiss")}
 						</button>
 					</div>
 				)}
 				<div className="mail-compose-fields">
 					<div className="mail-compose-field">
-						<label htmlFor="compose-to">To</label>
+						<label htmlFor="compose-to">{t("To")}</label>
 						<input
 							ref={toRef}
 							id="compose-to"
 							value={form.to}
 							onChange={(event) => form.setTo(event.target.value)}
-							placeholder="Recipients"
+							placeholder={t("Recipients")}
 							autoComplete="off"
 							required
 						/>
@@ -166,40 +169,40 @@ export default function ComposePanel() {
 							aria-expanded={form.showCcBcc}
 							onClick={() => form.setShowCcBcc(!form.showCcBcc)}
 						>
-							Cc / Bcc
+							{t("Cc / Bcc")}
 						</button>
 					</div>
 					{form.showCcBcc && (
 						<>
 							<div className="mail-compose-field">
-								<label htmlFor="compose-cc">Cc</label>
+								<label htmlFor="compose-cc">{t("Cc")}</label>
 								<input
 									id="compose-cc"
 									value={form.cc}
 									onChange={(event) => form.setCc(event.target.value)}
-									placeholder="Separate addresses with commas"
+									placeholder={t("Separate addresses with commas")}
 								/>
 							</div>
 							<div className="mail-compose-field">
-								<label htmlFor="compose-bcc">Bcc</label>
+								<label htmlFor="compose-bcc">{t("Bcc")}</label>
 								<input
 									id="compose-bcc"
 									value={form.bcc}
 									onChange={(event) => form.setBcc(event.target.value)}
-									placeholder="Separate addresses with commas"
+									placeholder={t("Separate addresses with commas")}
 								/>
 							</div>
 						</>
 					)}
 					<div className="mail-compose-field">
 						<label htmlFor="compose-subject" className="sr-only">
-							Subject
+							{t("Subject")}
 						</label>
 						<input
 							id="compose-subject"
 							value={form.subject}
 							onChange={(event) => form.setSubject(event.target.value)}
-							placeholder="Subject"
+							placeholder={t("Subject")}
 						/>
 					</div>
 				</div>
@@ -209,10 +212,10 @@ export default function ComposePanel() {
 				<div className="mail-compose-footer">
 					<button type="submit" className="mail-primary-button" disabled={busy}>
 						<PaperPlaneTiltIcon size={17} />
-						{form.isSending ? "Sending…" : "Send"}
+						{form.isSending ? t("Sending…") : t("Send")}
 					</button>
 					<MailIconButton
-						label="Save draft (⌘/Ctrl S)"
+						label={t("Save draft (⌘/Ctrl S)")}
 						disabled={busy}
 						onClick={() => void form.handleSaveDraft()}
 					>
@@ -220,22 +223,22 @@ export default function ComposePanel() {
 					</MailIconButton>
 					<span className="mail-draft-status" role="status">
 						{form.isSavingDraft ? (
-							"Saving…"
+							t("Saving…")
 						) : form.saveState === "error" ? (
-							"Not saved"
+							t("Not saved")
 						) : form.dirty ? (
-							"Unsaved changes"
+							t("Unsaved changes")
 						) : form.saveState === "saved" ? (
 							<>
 								<CheckIcon size={13} />
-								Saved to Drafts
+								{t("Saved to Drafts")}
 							</>
 						) : (
 							""
 						)}
 					</span>
 					<MailIconButton
-						label="Discard draft"
+						label={t("Discard draft")}
 						className="mail-discard-button"
 						disabled={busy}
 						onClick={() => {
@@ -251,11 +254,12 @@ export default function ComposePanel() {
 			<Dialog.Root open={discardOpen} onOpenChange={setDiscardOpen}>
 				<Dialog size="sm" className="p-6 mail-dialog">
 					<Dialog.Title className="text-lg mb-3">
-						Discard this draft?
+						{t("Discard this draft?")}
 					</Dialog.Title>
 					<Dialog.Description className="text-sm text-kumo-subtle mb-6">
-						Your message will be deleted. To keep it, save and close the
-						composer instead.
+						{t(
+							"Your message will be deleted. To keep it, save and close the composer instead.",
+						)}
 					</Dialog.Description>
 					<div className="flex justify-end gap-2">
 						<button
@@ -263,7 +267,7 @@ export default function ComposePanel() {
 							type="button"
 							onClick={() => setDiscardOpen(false)}
 						>
-							Keep writing
+							{t("Keep writing")}
 						</button>
 						<button
 							className="mail-primary-button"
@@ -274,7 +278,7 @@ export default function ComposePanel() {
 								void form.handleDiscard();
 							}}
 						>
-							Discard
+							{t("Discard")}
 						</button>
 					</div>
 				</Dialog>

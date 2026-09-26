@@ -1,3 +1,4 @@
+import { useI18n } from "~/hooks/useI18n";
 import {
 	ArchiveIcon,
 	ArrowBendUpLeftIcon,
@@ -40,8 +41,14 @@ export default function EmailRow({
 	folderLabel,
 	highlight = (text) => text,
 }: Props) {
+	const { t, localeTag } = useI18n();
+
 	const unread = (email.thread_unread_count ?? (email.read ? 0 : 1)) > 0;
-	const participants = (email.participants || email.sender || "Unknown sender")
+	const participants = (
+		email.participants ||
+		email.sender ||
+		t("Unknown sender")
+	)
 		.split(",")
 		.map((sender) => sender.trim().split("@")[0])
 		.filter((sender, i, all) => all.indexOf(sender) === i);
@@ -59,14 +66,16 @@ export default function EmailRow({
 					<input
 						type="checkbox"
 						className="mail-checkbox"
-						aria-label={`Select ${email.subject || "(no subject)"}`}
+						aria-label={t("Select {subject}", {
+							subject: email.subject || t("(no subject)"),
+						})}
 						checked={!!checked}
 						onChange={onCheck}
 					/>
 				</div>
 			)}
 			<MailIconButton
-				label={email.starred ? "Unstar email" : "Star email"}
+				label={email.starred ? t("Unstar email") : t("Star email")}
 				className={`mail-row-star ${email.starred ? "is-starred" : ""}`}
 				onClick={onStar}
 				disabled={busy}
@@ -77,7 +86,7 @@ export default function EmailRow({
 				type="button"
 				className="mail-row-open"
 				onClick={onOpen}
-				aria-label={`${unread ? "Unread: " : ""}${names}, ${email.subject || "(no subject)"}`}
+				aria-label={`${unread ? t("Unread: ") : ""}${names}, ${email.subject || t("(no subject)")}`}
 			>
 				<span className="mail-row-sender">
 					{highlight(names)}
@@ -86,13 +95,13 @@ export default function EmailRow({
 				<span className="mail-row-content">
 					<span className="mail-row-topic">
 						{(email.has_draft || email.folder_id === Folders.DRAFT) && (
-							<span className="mail-draft-label">Draft</span>
+							<span className="mail-draft-label">{t("Draft")}</span>
 						)}
 						{folderLabel && (
 							<span className="mail-folder-chip">{folderLabel}</span>
 						)}
 						<span className="mail-row-subject">
-							{highlight(email.subject || "(no subject)")}
+							{highlight(email.subject || t("(no subject)"))}
 						</span>
 					</span>
 					{snippet && (
@@ -106,7 +115,9 @@ export default function EmailRow({
 					{email.needs_reply && !email.has_draft && (
 						<ArrowBendUpLeftIcon size={15} />
 					)}
-					<time dateTime={email.date}>{formatListDate(email.date)}</time>
+					<time dateTime={email.date}>
+						{formatListDate(email.date, localeTag)}
+					</time>
 				</span>
 			</button>
 			<div className="mail-row-actions">
@@ -114,7 +125,7 @@ export default function EmailRow({
 					email.folder_id !== Folders.TRASH &&
 					email.folder_id !== Folders.DRAFT && (
 						<MailIconButton
-							label="Archive email"
+							label={t("Archive email")}
 							onClick={onArchive}
 							disabled={busy}
 						>
@@ -124,8 +135,8 @@ export default function EmailRow({
 				<MailIconButton
 					label={
 						email.folder_id === Folders.TRASH
-							? "Delete permanently"
-							: "Move to Trash"
+							? t("Delete permanently")
+							: t("Move to Trash")
 					}
 					onClick={onTrash}
 					disabled={busy}
@@ -133,7 +144,7 @@ export default function EmailRow({
 					<TrashIcon size={19} />
 				</MailIconButton>
 				<MailIconButton
-					label={unread ? "Mark as read" : "Mark as unread"}
+					label={unread ? t("Mark as read") : t("Mark as unread")}
 					onClick={onRead}
 					disabled={busy}
 				>

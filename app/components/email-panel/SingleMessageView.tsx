@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 //     https://opensource.org/licenses/Apache-2.0
 
+import { useI18n } from "~/hooks/useI18n";
 import EmailAttachmentList from "~/components/EmailAttachmentList";
 import EmailIframe from "~/components/EmailIframe";
 import { formatDetailDate, rewriteInlineImages } from "~/lib/utils";
@@ -18,6 +19,8 @@ export default function SingleMessageView({
 	mailboxId,
 	onPreviewImage,
 }: SingleMessageViewProps) {
+	const { t, localeTag } = useI18n();
+
 	return (
 		<div className="mail-single-message">
 			<div className="mail-message-meta">
@@ -29,12 +32,12 @@ export default function SingleMessageView({
 						<div className="min-w-0">
 							<div className="mail-message-sender">{email.sender}</div>
 							<div className="text-xs text-kumo-subtle">
-								To: {email.recipient}
+								{t("To:")} {email.recipient}
 							</div>
 						</div>
 					</div>
 					<span className="mail-message-date">
-						{formatDetailDate(email.date)}
+						{formatDetailDate(email.date, localeTag)}
 					</span>
 				</div>
 			</div>

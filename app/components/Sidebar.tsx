@@ -1,3 +1,4 @@
+import { useI18n } from "~/hooks/useI18n";
 import { Dialog, Input } from "@cloudflare/kumo";
 import {
 	ArchiveIcon,
@@ -39,6 +40,8 @@ const SYSTEM_LINKS = [
 ];
 
 export default function Sidebar() {
+	const { t } = useI18n();
+
 	const { mailboxId } = useParams<{ mailboxId: string }>();
 	const navigate = useNavigate();
 	const location = useLocation();
@@ -71,14 +74,16 @@ export default function Sidebar() {
 			setFolderName("");
 		} catch (error) {
 			setError(
-				error instanceof Error ? error.message : "Could not create folder.",
+				error instanceof Error
+					? t(error.message)
+					: t("Could not create folder."),
 			);
 		}
 	};
 	return (
 		<aside
 			className={`mail-sidebar ${isSidebarCollapsed ? "is-collapsed" : ""}`}
-			aria-label="Mailbox navigation"
+			aria-label={t("Mailbox navigation")}
 		>
 			<div className="mail-compose-area">
 				<button
@@ -88,14 +93,15 @@ export default function Sidebar() {
 						startCompose();
 						closeSidebar();
 					}}
-					title="Compose (C)"
+					title={t("Compose (C)")}
 				>
 					<PencilSimpleIcon size={25} />
-					<span>Compose</span>
+					<span>{t("Compose")}</span>
 				</button>
 			</div>
-			<nav className="mail-navigation" aria-label="Mail folders">
-				{SYSTEM_LINKS.map(({ id, label, icon: Icon }) => {
+			<nav className="mail-navigation" aria-label={t("Mail folders")}>
+				{SYSTEM_LINKS.map(({ id, label: labelKey, icon: Icon }) => {
+					const label = t(labelKey);
 					const count =
 						folders.find((folder) => folder.id === id)?.unreadCount || 0;
 					const starred = id === "starred";
@@ -123,9 +129,9 @@ export default function Sidebar() {
 					);
 				})}
 				<div className="mail-folder-heading">
-					<span>Folders</span>
+					<span>{t("Folders")}</span>
 					<MailIconButton
-						label="Create folder"
+						label={t("Create folder")}
 						onClick={() => setCreateOpen(true)}
 					>
 						<PlusIcon size={20} />
@@ -155,7 +161,7 @@ export default function Sidebar() {
 						onClick={() => setCreateOpen(true)}
 					>
 						<PlusIcon size={16} />
-						<span>Create a folder</span>
+						<span>{t("Create a folder")}</span>
 					</button>
 				)}
 			</nav>
@@ -165,7 +171,7 @@ export default function Sidebar() {
 				onClick={navigateFolder}
 			>
 				<GearSixIcon size={18} />
-				<span>Settings</span>
+				<span>{t("Settings")}</span>
 			</NavLink>
 			<button
 				type="button"
@@ -174,11 +180,11 @@ export default function Sidebar() {
 					navigate("/");
 					closeSidebar();
 				}}
-				title="Switch mailbox"
+				title={t("Switch mailbox")}
 			>
 				<EnvelopeSimpleIcon size={19} />
 				<span>
-					<strong>{mailbox?.settings?.fromName || "Your mailbox"}</strong>
+					<strong>{mailbox?.settings?.fromName || t("Your mailbox")}</strong>
 					<small>{mailbox?.email || mailboxId}</small>
 				</span>
 				<CaretLeftIcon size={15} />
@@ -186,12 +192,12 @@ export default function Sidebar() {
 			<Dialog.Root open={createOpen} onOpenChange={setCreateOpen}>
 				<Dialog size="sm" className="p-6 mail-dialog">
 					<Dialog.Title className="text-lg font-medium mb-5">
-						New folder
+						{t("New folder")}
 					</Dialog.Title>
 					<form onSubmit={handleCreate} className="space-y-5">
 						<Input
-							label="Folder name"
-							placeholder="e.g. Projects"
+							label={t("Folder name")}
+							placeholder={t("e.g. Projects")}
 							value={folderName}
 							onChange={(event) => setFolderName(event.target.value)}
 							required
@@ -199,7 +205,7 @@ export default function Sidebar() {
 						/>
 						{error && (
 							<p role="alert" className="mail-form-error">
-								{error}
+								{t(error)}
 							</p>
 						)}
 						<div className="flex justify-end gap-2">
@@ -208,14 +214,14 @@ export default function Sidebar() {
 								className="mail-text-button"
 								onClick={() => setCreateOpen(false)}
 							>
-								Cancel
+								{t("Cancel")}
 							</button>
 							<button
 								type="submit"
 								className="mail-primary-button"
 								disabled={!folderName.trim() || createFolder.isPending}
 							>
-								{createFolder.isPending ? "Creating…" : "Create"}
+								{createFolder.isPending ? t("Creating…") : t("Create")}
 							</button>
 						</div>
 					</form>

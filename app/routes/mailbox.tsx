@@ -1,3 +1,4 @@
+import { useI18n } from "~/hooks/useI18n";
 import {
 	SparkleIcon,
 	PlugsIcon,
@@ -17,6 +18,8 @@ import { useMailbox } from "~/queries/mailboxes";
 import { useUIStore } from "~/hooks/useUIStore";
 
 export default function MailboxRoute() {
+	const { t } = useI18n();
+
 	const { mailboxId } = useParams<{ mailboxId: string }>();
 	useMailbox(mailboxId);
 	const previousMailbox = useRef(mailboxId);
@@ -132,14 +135,14 @@ export default function MailboxRoute() {
 			className={`mail-shell ${isSidebarCollapsed ? "navigation-collapsed" : ""}`}
 		>
 			<a href="#mail-content" className="mail-skip-link">
-				Skip to mail
+				{t("Skip to mail")}
 			</a>
 			<Header />
 			<div className="mail-workspace">
 				{isSidebarOpen && (
 					<button
 						className="mail-sidebar-backdrop"
-						aria-label="Close navigation"
+						aria-label={t("Close navigation")}
 						onClick={closeSidebar}
 					/>
 				)}
@@ -148,13 +151,13 @@ export default function MailboxRoute() {
 					inert={isMobile && !isSidebarOpen}
 					role={isMobile && isSidebarOpen ? "dialog" : undefined}
 					aria-modal={isMobile && isSidebarOpen ? true : undefined}
-					aria-label="Mailbox navigation"
+					aria-label={t("Mailbox navigation")}
 					className={`mail-sidebar-container ${isSidebarOpen ? "is-open" : ""}`}
 				>
 					<button
 						className="mail-sidebar-close"
 						onClick={closeSidebar}
-						aria-label="Close navigation"
+						aria-label={t("Close navigation")}
 					>
 						<XIcon size={22} />
 					</button>
@@ -176,10 +179,10 @@ export default function MailboxRoute() {
 							<div className="mail-assistant-title">
 								<span>
 									<SparkleIcon size={20} weight="duotone" />
-									Your email assistant
+									{t("Your email assistant")}
 								</span>
 								<MailIconButton
-									label="Close email assistant"
+									label={t("Close email assistant")}
 									onClick={closeAssistant}
 								>
 									<XIcon size={18} />
@@ -189,9 +192,9 @@ export default function MailboxRoute() {
 						</>
 					)}
 				</div>
-				<aside className="mail-app-rail" aria-label="Email tools">
+				<aside className="mail-app-rail" aria-label={t("Email tools")}>
 					<MailIconButton
-						label="Email assistant"
+						label={t("Email assistant")}
 						active={isAgentPanelOpen && assistantTab === "agent"}
 						onClick={() => {
 							if (isAgentPanelOpen && assistantTab === "agent")
@@ -202,7 +205,7 @@ export default function MailboxRoute() {
 						<SparkleIcon size={23} weight="duotone" />
 					</MailIconButton>
 					<MailIconButton
-						label="MCP connections"
+						label={t("MCP connections")}
 						active={isAgentPanelOpen && assistantTab === "mcp"}
 						onClick={() => {
 							if (isAgentPanelOpen && assistantTab === "mcp") closeAssistant();
@@ -220,7 +223,7 @@ export default function MailboxRoute() {
 					onClick={() => startCompose()}
 				>
 					<PencilSimpleIcon size={23} />
-					Compose
+					{t("Compose")}
 				</button>
 			)}
 			{isComposing && <ComposePanel key={mailboxId} />}

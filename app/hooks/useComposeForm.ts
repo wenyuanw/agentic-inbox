@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 //     https://opensource.org/licenses/Apache-2.0
 
+import { useI18n } from "~/hooks/useI18n";
 import { useKumoToastManager } from "@cloudflare/kumo";
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useBlocker } from "react-router";
@@ -180,6 +181,8 @@ function buildInitialComposeFields(
 }
 
 export function useComposeForm(mailboxId?: string, _folder?: string) {
+	const { t } = useI18n();
+
 	const toastManager = useKumoToastManager();
 	const { composeOptions, closeCompose, isComposing, showNotice } =
 		useUIStore();
@@ -209,12 +212,12 @@ export function useComposeForm(mailboxId?: string, _folder?: string) {
 	const navigatingRef = useRef(false);
 	const sendingRef = useRef(false);
 	const formTitle = composeOptions.draftEmail
-		? "Edit draft"
+		? t("Edit draft")
 		: composeOptions.mode === "reply" || composeOptions.mode === "reply-all"
-			? "Reply"
+			? t("Reply")
 			: composeOptions.mode === "forward"
-				? "Forward"
-				: "New message";
+				? t("Forward")
+				: t("New message");
 	const sigBlock = useMemo(
 		() => getSignatureBlock(currentMailbox?.settings),
 		[currentMailbox],
@@ -304,11 +307,13 @@ export function useComposeForm(mailboxId?: string, _folder?: string) {
 				draftIdRef.current = result.id;
 				savedSnapshotRef.current = snapshot;
 				setSaveState("saved");
-				if (!silent) showNotice({ message: "Draft saved" });
+				if (!silent) showNotice({ message: t("Draft saved") });
 				return true;
 			} catch (err) {
 				const message =
-					err instanceof Error ? err.message : "Could not save your draft.";
+					err instanceof Error
+						? t(err.message)
+						: t("Could not save your draft.");
 				setError(message);
 				setSaveState("error");
 				return false;
@@ -351,7 +356,7 @@ export function useComposeForm(mailboxId?: string, _folder?: string) {
 		if (isSending || isSavingDraft) return;
 		if (await saveDraft(true)) {
 			closeCompose();
-			if (hasContent) showNotice({ message: "Draft saved to Drafts" });
+			if (hasContent) showNotice({ message: t("Draft saved to Drafts") });
 		}
 	};
 	const handleDiscard = async () => {
@@ -363,10 +368,12 @@ export function useComposeForm(mailboxId?: string, _folder?: string) {
 					id: draftIdRef.current,
 				});
 			closeCompose();
-			showNotice({ message: "Draft discarded" });
+			showNotice({ message: t("Draft discarded") });
 		} catch (err) {
 			setError(
-				err instanceof Error ? err.message : "Could not discard your draft.",
+				err instanceof Error
+					? t(err.message)
+					: t("Could not discard your draft."),
 			);
 		}
 	};
@@ -375,12 +382,12 @@ export function useComposeForm(mailboxId?: string, _folder?: string) {
 		if (sendingRef.current || savingRef.current) return;
 		setError(null);
 		if (!currentMailbox || !mailboxId) {
-			setError("No mailbox selected.");
+			setError(t("No mailbox selected."));
 			return;
 		}
 		const recipients = splitEmailList(to);
 		if (recipients.length === 0) {
-			setError("Add at least one recipient.");
+			setError(t("Add at least one recipient."));
 			return;
 		}
 		const allRecipients = [
@@ -393,7 +400,7 @@ export function useComposeForm(mailboxId?: string, _folder?: string) {
 				(address) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address),
 			)
 		) {
-			setError("Check the email addresses in To, Cc, and Bcc.");
+			setError(t("Check the email addresses in To, Cc, and Bcc."));
 			return;
 		}
 		const fromName = currentMailbox.settings?.fromName || currentMailbox.name;
@@ -441,16 +448,20 @@ export function useComposeForm(mailboxId?: string, _folder?: string) {
 					});
 				} catch {
 					toastManager.add({
-						title: "Message queued, but the saved draft could not be removed.",
+						title: t(
+							"Message queued, but the saved draft could not be removed.",
+						),
 						variant: "error",
 					});
 				}
 			}
-			showNotice({ message: "Message queued for sending" });
+			showNotice({ message: t("Message queued for sending") });
 			onClose();
 		} catch (err) {
 			setError(
-				err instanceof Error ? err.message : "Could not send your message.",
+				err instanceof Error
+					? t(err.message)
+					: t("Could not send your message."),
 			);
 		} finally {
 			sendingRef.current = false;
@@ -471,7 +482,7 @@ export function useComposeForm(mailboxId?: string, _folder?: string) {
 			if (isSending) {
 				blocker.reset();
 				showNotice({
-					message: "Please wait while your message is being queued.",
+					message: t("Please wait while your message is being queued."),
 				});
 			} else if (await saveDraft(true)) {
 				closeCompose();
@@ -479,8 +490,9 @@ export function useComposeForm(mailboxId?: string, _folder?: string) {
 			} else {
 				blocker.reset();
 				showNotice({
-					message:
+					message: t(
 						"Your draft could not be saved. Please retry before leaving.",
+					),
 				});
 			}
 			navigatingRef.current = false;

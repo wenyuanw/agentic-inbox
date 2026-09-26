@@ -1,3 +1,4 @@
+import { useI18n } from "~/hooks/useI18n";
 import { Dialog } from "@cloudflare/kumo";
 import {
 	ArchiveIcon,
@@ -13,7 +14,7 @@ import {
 } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
-import { Folders, getFolderDisplayName } from "shared/folders";
+import { Folders } from "shared/folders";
 import EmailRow from "~/components/EmailRow";
 import MailIconButton from "~/components/MailIconButton";
 import MailboxSplitView from "~/components/MailboxSplitView";
@@ -43,6 +44,8 @@ function highlightTerms(text: string, query: string) {
 	);
 }
 export default function SearchResultsRoute() {
+	const { t, folderLabel } = useI18n();
+
 	const { mailboxId } = useParams<{ mailboxId: string }>();
 	const [params] = useSearchParams();
 	const query = params.get("q") || "";
@@ -101,10 +104,10 @@ export default function SearchResultsRoute() {
 		try {
 			await remove.mutateAsync({ mailboxId, id: permanent.id });
 			setPermanent(null);
-			showNotice({ message: "Message deleted permanently" });
+			showNotice({ message: t("Message deleted permanently") });
 		} catch {
 			showNotice({
-				message: "Could not delete this message. Please try again.",
+				message: t("Could not delete this message. Please try again."),
 			});
 		}
 	};
@@ -114,7 +117,7 @@ export default function SearchResultsRoute() {
 				className={`mail-list-toolbar ${selected.length ? "has-selection" : ""}`}
 			>
 				<MailIconButton
-					label="Back to inbox"
+					label={t("Back to inbox")}
 					onClick={() => navigate(`/mailbox/${mailboxId}/emails/inbox`)}
 				>
 					<ArrowLeftIcon size={19} />
@@ -124,7 +127,7 @@ export default function SearchResultsRoute() {
 						ref={selectAll}
 						className="mail-checkbox"
 						type="checkbox"
-						aria-label="Select all results on this page"
+						aria-label={t("Select all results on this page")}
 						disabled={!results.length || actions.busy}
 						checked={!!results.length && selected.length === results.length}
 						onChange={() =>
@@ -139,10 +142,10 @@ export default function SearchResultsRoute() {
 				{selected.length ? (
 					<>
 						<span className="mail-selection-count">
-							{selected.length} selected
+							{t("{count} selected", { count: selected.length })}
 						</span>
 						<MailIconButton
-							label="Archive selected"
+							label={t("Archive selected")}
 							disabled={actions.busy}
 							onClick={() =>
 								void move(
@@ -158,21 +161,21 @@ export default function SearchResultsRoute() {
 							<ArchiveIcon size={20} />
 						</MailIconButton>
 						<MailIconButton
-							label="Move selected to Trash"
+							label={t("Move selected to Trash")}
 							disabled={actions.busy}
 							onClick={() => void move(selected, Folders.TRASH)}
 						>
 							<TrashIcon size={20} />
 						</MailIconButton>
 						<MailIconButton
-							label="Mark selected as read"
+							label={t("Mark selected as read")}
 							disabled={actions.busy}
 							onClick={() => void actions.markRead(selected, true)}
 						>
 							<EnvelopeOpenIcon size={20} />
 						</MailIconButton>
 						<MailIconButton
-							label="Mark selected as unread"
+							label={t("Mark selected as unread")}
 							disabled={actions.busy}
 							onClick={() => void actions.markRead(selected, false)}
 						>
@@ -181,7 +184,7 @@ export default function SearchResultsRoute() {
 					</>
 				) : (
 					<MailIconButton
-						label="Refresh search"
+						label={t("Refresh search")}
 						disabled={isFetching}
 						onClick={() => void refetch()}
 					>
@@ -191,18 +194,22 @@ export default function SearchResultsRoute() {
 				<div className="mail-pagination">
 					<span>
 						{total
-							? `${(currentPage - 1) * SEARCH_PAGE_SIZE + 1}–${Math.min(currentPage * SEARCH_PAGE_SIZE, total)} of ${total}`
-							: "0 results"}
+							? t("{start}–{end} of {total}", {
+									start: (currentPage - 1) * SEARCH_PAGE_SIZE + 1,
+									end: Math.min(currentPage * SEARCH_PAGE_SIZE, total),
+									total,
+								})
+							: t("0 results")}
 					</span>
 					<MailIconButton
-						label="Previous page"
+						label={t("Previous page")}
 						disabled={currentPage <= 1 || isFetching}
 						onClick={() => setPage(currentPage - 1)}
 					>
 						<CaretLeftIcon size={18} />
 					</MailIconButton>
 					<MailIconButton
-						label="Next page"
+						label={t("Next page")}
 						disabled={currentPage * SEARCH_PAGE_SIZE >= total || isFetching}
 						onClick={() => setPage(currentPage + 1)}
 					>
@@ -213,19 +220,19 @@ export default function SearchResultsRoute() {
 			<div className="mail-folder-title">
 				<h1>
 					{starred ? <StarIcon size={20} /> : <MagnifyingGlassIcon size={20} />}
-					{starred ? "Starred" : "Search results"}
+					{starred ? t("Starred") : t("Search results")}
 				</h1>
 				<span>
 					{starred
-						? "The messages you want to keep close."
+						? t("The messages you want to keep close.")
 						: query
-							? `Results for “${query}”`
-							: "Search your mail"}
+							? t("Results for “{query}”", { query })
+							: t("Search your mail")}
 				</span>
 			</div>
 			<div className="mail-list-scroll">
 				{isLoading ? (
-					<div className="mail-list-skeleton" aria-label="Searching mail">
+					<div className="mail-list-skeleton" aria-label={t("Searching mail")}>
 						{Array.from({ length: 8 }, (_, index) => (
 							<div key={index}>
 								<span />
@@ -236,13 +243,13 @@ export default function SearchResultsRoute() {
 					</div>
 				) : isError ? (
 					<div className="mail-empty-state">
-						<h2>Couldn’t search your mail</h2>
-						<p>Please try again.</p>
+						<h2>{t("Couldn’t search your mail")}</h2>
+						<p>{t("Please try again.")}</p>
 						<button
 							className="mail-primary-button"
 							onClick={() => void refetch()}
 						>
-							Retry
+							{t("Retry")}
 						</button>
 					</div>
 				) : results.length ? (
@@ -276,10 +283,10 @@ export default function SearchResultsRoute() {
 									: void move([email], Folders.TRASH)
 							}
 							busy={actions.busy || update.isPending}
-							folderLabel={
-								email.folder_name ||
-								getFolderDisplayName(email.folder_id || Folders.INBOX)
-							}
+							folderLabel={folderLabel(
+								email.folder_id || Folders.INBOX,
+								email.folder_name,
+							)}
 							highlight={(text) => highlightTerms(text, query)}
 						/>
 					))
@@ -293,18 +300,25 @@ export default function SearchResultsRoute() {
 							)}
 						</div>
 						<h2>
-							{starred ? "Keep important mail close" : "No matching messages"}
+							{starred
+								? t("Keep important mail close")
+								: t("No matching messages")}
 						</h2>
 						<p>
 							{starred
-								? "Click the star beside a message to find it here."
+								? t("Click the star beside a message to find it here.")
 								: query
-									? `Nothing matched “${query}”. Try another keyword or adjust your search options.`
-									: "Search by sender, subject, or a few words you remember."}
+									? t(
+											"Nothing matched “{query}”. Try another keyword or adjust your search options.",
+											{ query },
+										)
+									: t(
+											"Search by sender, subject, or a few words you remember.",
+										)}
 						</p>
 						{!starred && (
 							<p className="mail-search-tip">
-								Try from:name · is:unread · has:attachment
+								{t("Try from:name · is:unread · has:attachment")}
 							</p>
 						)}
 					</div>
@@ -312,7 +326,16 @@ export default function SearchResultsRoute() {
 			</div>
 			<div className="mail-list-footer">
 				<span>
-					{total} {starred ? "starred messages" : "results"}
+					{t(
+						starred
+							? total === 1
+								? "{count} starred message"
+								: "{count} starred messages"
+							: total === 1
+								? "{count} result"
+								: "{count} results",
+						{ count: total },
+					)}
 				</span>
 				<span>Agentic Inbox</span>
 			</div>
@@ -324,24 +347,26 @@ export default function SearchResultsRoute() {
 			>
 				<Dialog size="sm" className="p-6 mail-dialog">
 					<Dialog.Title className="text-lg mb-3">
-						Delete permanently?
+						{t("Delete permanently?")}
 					</Dialog.Title>
 					<Dialog.Description className="text-sm text-kumo-subtle mb-6">
-						This message will be removed from Trash. This cannot be undone.
+						{t(
+							"This message will be removed from Trash. This cannot be undone.",
+						)}
 					</Dialog.Description>
 					<div className="flex justify-end gap-2">
 						<button
 							className="mail-text-button"
 							onClick={() => setPermanent(null)}
 						>
-							Cancel
+							{t("Cancel")}
 						</button>
 						<button
 							className="mail-primary-button"
 							disabled={remove.isPending}
 							onClick={() => void deletePermanently()}
 						>
-							Delete permanently
+							{t("Delete permanently")}
 						</button>
 					</div>
 				</Dialog>

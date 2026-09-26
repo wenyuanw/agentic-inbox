@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 //     https://opensource.org/licenses/Apache-2.0
 
+import { useI18n } from "~/hooks/useI18n";
 import { Banner, Button, Dialog, Input, Text } from "@cloudflare/kumo";
 import { FloppyDiskIcon, PaperPlaneTiltIcon } from "@phosphor-icons/react";
 import { useParams } from "react-router";
@@ -10,11 +11,13 @@ import RichTextEditor from "./RichTextEditor";
 import { useUIStore } from "~/hooks/useUIStore";
 
 export default function ComposeEmail() {
+	const { t } = useI18n();
+
 	const { mailboxId, folder } = useParams<{
 		mailboxId: string;
 		folder: string;
 	}>();
-	
+
 	const { isComposeModalOpen, closeComposeModal } = useUIStore();
 
 	const {
@@ -47,12 +50,15 @@ export default function ComposeEmail() {
 				<Dialog.Title className="text-lg font-semibold mb-5">
 					{formTitle}
 				</Dialog.Title>
-				<form onSubmit={(e) => handleSend(e, closeComposeModal)} className="space-y-4">
-					{error && <Banner variant="error" text={error} />}
+				<form
+					onSubmit={(e) => handleSend(e, closeComposeModal)}
+					className="space-y-4"
+				>
+					{error && <Banner variant="error" text={t(error)} />}
 					<div className="flex items-center gap-2">
 						<div className="flex-1">
 							<Input
-								label="To"
+								label={t("To")}
 								type="text"
 								placeholder="recipient@example.com, another@example.com"
 								size="sm"
@@ -67,34 +73,34 @@ export default function ComposeEmail() {
 								onClick={() => setShowCcBcc(true)}
 								className="shrink-0 text-xs text-kumo-link hover:text-kumo-link-hover font-medium mt-5"
 							>
-								CC / BCC
+								{t("CC / BCC")}
 							</button>
 						)}
 					</div>
 					{showCcBcc && (
 						<Input
-							label="CC"
+							label={t("CC")}
 							type="text"
 							size="sm"
 							value={cc}
 							onChange={(e) => setCc(e.target.value)}
-							placeholder="Separate multiple addresses with commas"
+							placeholder={t("Separate multiple addresses with commas")}
 						/>
 					)}
 					{showCcBcc && (
 						<Input
-							label="BCC"
+							label={t("BCC")}
 							type="text"
 							size="sm"
 							value={bcc}
 							onChange={(e) => setBcc(e.target.value)}
-							placeholder="Separate multiple addresses with commas"
+							placeholder={t("Separate multiple addresses with commas")}
 						/>
 					)}
 					<Input
-						label="Subject"
+						label={t("Subject")}
 						type="text"
-						placeholder="Email subject"
+						placeholder={t("Email subject")}
 						size="sm"
 						value={subject}
 						onChange={(e) => setSubject(e.target.value)}
@@ -102,7 +108,7 @@ export default function ComposeEmail() {
 					/>
 					<div>
 						<Text size="sm" DANGEROUS_className="font-medium mb-1.5 block">
-							Message
+							{t("Message")}
 						</Text>
 						<RichTextEditor value={body} onChange={setBody} />
 					</div>
@@ -114,7 +120,7 @@ export default function ComposeEmail() {
 							onClick={closeComposeModal}
 							disabled={isSending}
 						>
-							Discard
+							{t("Discard")}
 						</Button>
 						<div className="flex items-center gap-2">
 							<Button
@@ -126,7 +132,7 @@ export default function ComposeEmail() {
 								icon={<FloppyDiskIcon size={14} />}
 								onClick={handleSaveDraft}
 							>
-								{isSavingDraft ? "Saving..." : "Save as Draft"}
+								{isSavingDraft ? t("Saving...") : t("Save as Draft")}
 							</Button>
 							<Button
 								type="submit"
@@ -136,7 +142,7 @@ export default function ComposeEmail() {
 								disabled={isSavingDraft || isSending}
 								icon={<PaperPlaneTiltIcon size={14} />}
 							>
-								{isSending ? "Sending..." : "Send"}
+								{isSending ? t("Sending...") : t("Send")}
 							</Button>
 						</div>
 					</div>

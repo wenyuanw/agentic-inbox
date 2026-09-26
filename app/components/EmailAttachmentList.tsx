@@ -2,8 +2,13 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 //     https://opensource.org/licenses/Apache-2.0
 
+import { useI18n } from "~/hooks/useI18n";
 import { PaperclipIcon, FileIcon, ImageIcon } from "@phosphor-icons/react";
-import { formatBytes, getAttachmentUrl, getNonInlineAttachments } from "~/lib/utils";
+import {
+	formatBytes,
+	getAttachmentUrl,
+	getNonInlineAttachments,
+} from "~/lib/utils";
 import type { Attachment } from "~/types";
 
 interface EmailAttachmentListProps {
@@ -23,6 +28,7 @@ export default function EmailAttachmentList({
 	className,
 	showHeading = false,
 }: EmailAttachmentListProps) {
+	const { t } = useI18n();
 	if (!mailboxId) return null;
 
 	const files = getNonInlineAttachments(attachments);
@@ -34,7 +40,10 @@ export default function EmailAttachmentList({
 				<div className="flex items-center gap-2 mb-2">
 					<PaperclipIcon size={14} className="text-kumo-subtle" />
 					<span className="text-sm font-medium text-kumo-default">
-						{files.length} attachment{files.length !== 1 ? "s" : ""}
+						{t(
+							files.length === 1 ? "{count} attachment" : "{count} attachments",
+							{ count: files.length },
+						)}
 					</span>
 				</div>
 			)}
@@ -55,7 +64,9 @@ export default function EmailAttachmentList({
 								<span className="text-kumo-default font-medium truncate max-w-[140px]">
 									{attachment.filename}
 								</span>
-								<span className="text-kumo-subtle">{formatBytes(attachment.size)}</span>
+								<span className="text-kumo-subtle">
+									{formatBytes(attachment.size)}
+								</span>
 							</button>
 						);
 					}
@@ -72,7 +83,9 @@ export default function EmailAttachmentList({
 							<span className="text-kumo-default font-medium truncate max-w-[140px]">
 								{attachment.filename}
 							</span>
-							<span className="text-kumo-subtle">{formatBytes(attachment.size)}</span>
+							<span className="text-kumo-subtle">
+								{formatBytes(attachment.size)}
+							</span>
 						</a>
 					);
 				})}

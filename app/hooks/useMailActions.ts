@@ -1,3 +1,4 @@
+import { useI18n } from "~/hooks/useI18n";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Folders } from "shared/folders";
@@ -7,6 +8,8 @@ import { useUIStore } from "./useUIStore";
 
 /** Conversation actions affect messages in the current folder, preserving sent mail and drafts. */
 export function useMailActions(mailboxId?: string) {
+	const { t, conversationCount } = useI18n();
+
 	const queryClient = useQueryClient();
 	const { showNotice } = useUIStore();
 	const [busy, setBusy] = useState(false);
@@ -46,17 +49,20 @@ export function useMailActions(mailboxId?: string) {
 			invalidate();
 			const verb =
 				folderId === Folders.TRASH
-					? "Moved to Trash"
+					? t("Moved to Trash")
 					: folderId === Folders.ARCHIVE
-						? "Archived"
+						? t("Archived")
 						: folderId === Folders.INBOX
-							? "Moved to Inbox"
-							: "Moved";
+							? t("Moved to Inbox")
+							: t("Moved");
 			showNotice({
 				message: failed
-					? `${moved.length} moved; ${failed} could not be moved.`
-					: `${verb}${emails.length > 1 ? ` · ${emails.length} conversations` : ""}`,
-				actionLabel: "Undo",
+					? t("{moved} moved; {failed} could not be moved.", {
+							moved: moved.length,
+							failed,
+						})
+					: `${verb}${emails.length > 1 ? ` · ${conversationCount(emails.length)}` : ""}`,
+				actionLabel: t("Undo"),
 				action: moved.length
 					? () => {
 							void (async () => {
@@ -74,8 +80,10 @@ export function useMailActions(mailboxId?: string) {
 									message: restored.every(
 										(result) => result.status === "fulfilled",
 									)
-										? "Move undone"
-										: "Some messages could not be restored. Please try again.",
+										? t("Move undone")
+										: t(
+												"Some messages could not be restored. Please try again.",
+											),
 								});
 							})();
 						}
@@ -87,7 +95,7 @@ export function useMailActions(mailboxId?: string) {
 				message:
 					error instanceof Error
 						? error.message
-						: "Could not move messages. Please try again.",
+						: t("Could not move messages. Please try again."),
 			});
 			return false;
 		} finally {
@@ -105,11 +113,13 @@ export function useMailActions(mailboxId?: string) {
 			invalidate();
 			showNotice({
 				message: results.every((result) => result.status === "fulfilled")
-					? `Marked as ${read ? "read" : "unread"}`
-					: "Some messages could not be updated. Please try again.",
+					? t(read ? "Marked as read" : "Marked as unread")
+					: t("Some messages could not be updated. Please try again."),
 			});
 		} catch {
-			showNotice({ message: "Could not update messages. Please try again." });
+			showNotice({
+				message: t("Could not update messages. Please try again."),
+			});
 		} finally {
 			setBusy(false);
 		}

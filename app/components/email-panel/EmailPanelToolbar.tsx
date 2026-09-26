@@ -1,3 +1,4 @@
+import { useI18n } from "~/hooks/useI18n";
 import {
 	ArchiveIcon,
 	ArrowLeftIcon,
@@ -41,23 +42,25 @@ export default function EmailPanelToolbar({
 	onViewSource,
 	onDelete,
 }: Props) {
+	const { t, folderLabel } = useI18n();
+
 	return (
 		<div className="mail-reader-toolbar">
-			<MailIconButton label="Back to list" onClick={onBack}>
+			<MailIconButton label={t("Back to list")} onClick={onBack}>
 				<ArrowLeftIcon size={20} />
 			</MailIconButton>
 			<div className="mail-toolbar-divider" />
 			{isDraftFolder ? (
 				<button className="mail-text-button" onClick={onEditDraft}>
 					<PencilSimpleIcon size={17} />
-					Edit draft
+					{t("Edit draft")}
 				</button>
 			) : (
 				<>
 					{email.folder_id !== Folders.ARCHIVE &&
 						email.folder_id !== Folders.TRASH && (
 							<MailIconButton
-								label="Archive conversation"
+								label={t("Archive conversation")}
 								disabled={busy}
 								onClick={onArchive}
 							>
@@ -65,7 +68,7 @@ export default function EmailPanelToolbar({
 							</MailIconButton>
 						)}
 					<MailIconButton
-						label={email.read ? "Mark as unread" : "Mark as read"}
+						label={email.read ? t("Mark as unread") : t("Mark as read")}
 						disabled={busy}
 						onClick={onToggleRead}
 					>
@@ -75,10 +78,10 @@ export default function EmailPanelToolbar({
 							<EnvelopeOpenIcon size={20} />
 						)}
 					</MailIconButton>
-					<label className="mail-move-select" title="Move to folder">
+					<label className="mail-move-select" title={t("Move to folder")}>
 						<FolderSimpleIcon size={20} />
 						<select
-							aria-label="Move to folder"
+							aria-label={t("Move to folder")}
 							disabled={busy}
 							value=""
 							onChange={(event) => {
@@ -86,7 +89,7 @@ export default function EmailPanelToolbar({
 							}}
 						>
 							<option value="" disabled>
-								Move to folder
+								{t("Move to folder")}
 							</option>
 							{moveToFolders
 								.filter(
@@ -95,7 +98,7 @@ export default function EmailPanelToolbar({
 								)
 								.map((folder) => (
 									<option key={folder.id} value={folder.id}>
-										{folder.name}
+										{folderLabel(folder.id, folder.name)}
 									</option>
 								))}
 						</select>
@@ -105,10 +108,10 @@ export default function EmailPanelToolbar({
 			<MailIconButton
 				label={
 					email.folder_id === Folders.TRASH
-						? "Delete permanently"
+						? t("Delete permanently")
 						: isDraftFolder
-							? "Discard draft"
-							: "Move conversation to Trash"
+							? t("Discard draft")
+							: t("Move conversation to Trash")
 				}
 				disabled={busy}
 				onClick={onDelete}
@@ -117,7 +120,7 @@ export default function EmailPanelToolbar({
 			</MailIconButton>
 			<div className="mail-toolbar-spacer" />
 			<MailIconButton
-				label={email.starred ? "Unstar email" : "Star email"}
+				label={email.starred ? t("Unstar email") : t("Star email")}
 				disabled={busy}
 				onClick={onToggleStar}
 			>
@@ -127,7 +130,7 @@ export default function EmailPanelToolbar({
 					className={email.starred ? "text-amber-500" : ""}
 				/>
 			</MailIconButton>
-			<MailIconButton label="View source" onClick={onViewSource}>
+			<MailIconButton label={t("View source")} onClick={onViewSource}>
 				<CodeIcon size={20} />
 			</MailIconButton>
 		</div>

@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 //     https://opensource.org/licenses/Apache-2.0
 
+import LanguageSelect from "~/components/LanguageSelect";
+import { useI18n } from "~/hooks/useI18n";
 import {
 	Button,
 	Input,
@@ -31,17 +33,31 @@ type WizardStep = "credentials" | "configure" | "complete";
 function StepIcon({ status }: { status: SetupStep["status"] }) {
 	switch (status) {
 		case "done":
-			return <CheckCircleIcon size={20} className="text-green-600 shrink-0" weight="fill" />;
+			return (
+				<CheckCircleIcon
+					size={20}
+					className="text-green-600 shrink-0"
+					weight="fill"
+				/>
+			);
 		case "running":
 			return <Loader size="sm" />;
 		case "error":
-			return <XCircleIcon size={20} className="text-red-600 shrink-0" weight="fill" />;
+			return (
+				<XCircleIcon
+					size={20}
+					className="text-red-600 shrink-0"
+					weight="fill"
+				/>
+			);
 		default:
 			return <CircleIcon size={20} className="text-kumo-inactive shrink-0" />;
 	}
 }
 
 export default function SetupRoute() {
+	const { t } = useI18n();
+
 	const navigate = useNavigate();
 	const toastManager = useKumoToastManager();
 	const { data: setupStatus, isLoading: statusLoading } = useSetupStatus();
@@ -66,7 +82,7 @@ export default function SetupRoute() {
 		e.preventDefault();
 		setValidationError(null);
 		if (!cfToken.trim() || !resendKey.trim() || !domain.trim()) {
-			setValidationError("请填写所有字段");
+			setValidationError(t("Please fill in all fields"));
 			return;
 		}
 		try {
@@ -80,13 +96,15 @@ export default function SetupRoute() {
 					!result.cloudflare.ok ? result.cloudflare.message : null,
 					!result.resend.ok ? result.resend.message : null,
 				].filter(Boolean);
-				setValidationError(msgs.join("；") || "验证失败");
+				setValidationError(msgs.join("；") || t("Validation failed"));
 				return;
 			}
-			toastManager.add({ title: "凭证验证通过" });
+			toastManager.add({ title: t("Credentials verified") });
 			setWizardStep("configure");
 		} catch (err) {
-			setValidationError(err instanceof Error ? err.message : "验证请求失败");
+			setValidationError(
+				err instanceof Error ? t(err.message) : t("Validation request failed"),
+			);
 		}
 	};
 
@@ -101,13 +119,15 @@ export default function SetupRoute() {
 			});
 			setConfigSteps(result.steps);
 			if (result.success) {
-				toastManager.add({ title: "域名邮箱配置完成！" });
+				toastManager.add({ title: t("Domain email setup complete!") });
 				setWizardStep("complete");
 			} else {
-				setConfigError(result.error || "配置失败");
+				setConfigError(t(result.error || "Setup failed"));
 			}
 		} catch (err) {
-			setConfigError(err instanceof Error ? err.message : "配置请求失败");
+			setConfigError(
+				err instanceof Error ? t(err.message) : t("Setup request failed"),
+			);
 		}
 	};
 
@@ -122,61 +142,80 @@ export default function SetupRoute() {
 	return (
 		<div className="mail-setup-page min-h-screen bg-kumo-recessed">
 			<div className="mx-auto max-w-lg px-4 py-10 md:py-16">
+				<div className="flex justify-end mb-6">
+					<LanguageSelect />
+				</div>
 				<div className="text-center mb-8">
 					<div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-kumo-base border border-kumo-line mb-4">
 						<EnvelopeIcon size={28} className="text-kumo-default" />
 					</div>
-					<h1 className="text-2xl font-normal text-kumo-default">配置域名邮箱</h1>
+					<h1 className="text-2xl font-normal text-kumo-default">
+						{t("Set up your domain email")}
+					</h1>
 					<p className="text-sm text-kumo-subtle mt-2 max-w-sm mx-auto">
-						填入 Cloudflare 和 Resend 的 API Key，自动完成收信路由与发信域名验证
+						{t(
+							"Enter your Cloudflare and Resend API keys to configure incoming email routing and verify your sending domain automatically.",
+						)}
 					</p>
 				</div>
 
 				{/* Progress indicator */}
 				<div className="flex items-center justify-center gap-2 mb-8">
-					{(["credentials", "configure", "complete"] as WizardStep[]).map((step, i) => (
-						<div key={step} className="flex items-center gap-2">
-							<div
-								className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold ${
-									wizardStep === step
-										? "bg-kumo-brand text-white"
-										: (["credentials", "configure", "complete"].indexOf(wizardStep) > i)
-											? "bg-green-100 text-green-700"
-											: "bg-kumo-fill text-kumo-subtle"
-								}`}
-							>
-								{i + 1}
+					{(["credentials", "configure", "complete"] as WizardStep[]).map(
+						(step, i) => (
+							<div key={step} className="flex items-center gap-2">
+								<div
+									className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold ${
+										wizardStep === step
+											? "bg-kumo-brand text-kumo-inverse"
+											: ["credentials", "configure", "complete"].indexOf(
+														wizardStep,
+												  ) > i
+												? "bg-green-100 text-green-700"
+												: "bg-kumo-fill text-kumo-subtle"
+									}`}
+								>
+									{i + 1}
+								</div>
+								{i < 2 && <div className="w-8 h-px bg-kumo-line" />}
 							</div>
-							{i < 2 && <div className="w-8 h-px bg-kumo-line" />}
-						</div>
-					))}
+						),
+					)}
 				</div>
 
 				<div className="mail-setup-card rounded-xl border border-kumo-line bg-kumo-base p-6">
 					{wizardStep === "credentials" && (
 						<form onSubmit={handleValidate} className="space-y-5">
 							<div>
-								<h2 className="text-base font-semibold text-kumo-default mb-1">API 凭证</h2>
+								<h2 className="text-base font-semibold text-kumo-default mb-1">
+									{t("API credentials")}
+								</h2>
 								<p className="text-sm text-kumo-subtle mb-4">
-									Cloudflare Token 仅用于本次配置，不会保存。Resend Key 会加密存储用于发信。
+									{t(
+										"The Cloudflare token is used only for this setup and is not saved. The Resend key is stored encrypted for sending emails.",
+									)}
 								</p>
 							</div>
 
 							<Input
-								label="Cloudflare API Token"
+								label={t("Cloudflare API Token")}
 								type="password"
-								placeholder="在 Cloudflare Dashboard → My Profile → API Tokens 创建"
+								placeholder={t(
+									"Create in Cloudflare Dashboard → My Profile → API Tokens",
+								)}
 								size="sm"
 								value={cfToken}
 								onChange={(e) => setCfToken(e.target.value)}
 								required
 							/>
 							<p className="text-xs text-kumo-subtle -mt-3">
-								需要权限：Zone DNS Edit、Email Routing Rules Edit
+								{t(
+									"Required permissions: Zone DNS Edit, Email Routing Rules Edit",
+								)}
 							</p>
 
 							<Input
-								label="Resend API Key"
+								label={t("Resend API Key")}
 								type="password"
 								placeholder="re_..."
 								size="sm"
@@ -186,7 +225,7 @@ export default function SetupRoute() {
 							/>
 
 							<Input
-								label="域名"
+								label={t("Domain")}
 								placeholder="example.com"
 								size="sm"
 								value={domain}
@@ -194,11 +233,13 @@ export default function SetupRoute() {
 								required
 							/>
 							<p className="text-xs text-kumo-subtle -mt-3">
-								域名须已托管在 Cloudflare
+								{t("Your domain must be hosted on Cloudflare")}
 							</p>
 
 							{validationError && (
-								<Text variant="error" size="sm">{validationError}</Text>
+								<Text variant="error" size="sm">
+									{t(validationError)}
+								</Text>
 							)}
 
 							<Button
@@ -207,7 +248,7 @@ export default function SetupRoute() {
 								className="w-full"
 								loading={validateSetup.isPending}
 							>
-								验证并继续
+								{t("Validate and continue")}
 							</Button>
 						</form>
 					)}
@@ -215,30 +256,45 @@ export default function SetupRoute() {
 					{wizardStep === "configure" && (
 						<div className="space-y-5">
 							<div>
-								<h2 className="text-base font-semibold text-kumo-default mb-1">自动配置</h2>
+								<h2 className="text-base font-semibold text-kumo-default mb-1">
+									{t("Automatic configuration")}
+								</h2>
 								<p className="text-sm text-kumo-subtle">
-									将为 <strong className="text-kumo-default">{domain}</strong> 执行以下操作：
+									{t("The following steps will be performed for {domain}:", {
+										domain,
+									})}
 								</p>
 								<ul className="text-sm text-kumo-subtle mt-3 space-y-1.5 list-disc list-inside">
-									<li>启用 Cloudflare Email Routing</li>
-									<li>设置 catch-all 规则转发到本 Worker</li>
-									<li>在 Resend 添加发信域名并配置 DNS</li>
-									<li>验证 SPF / DKIM 记录</li>
+									<li>{t("Enable Cloudflare Email Routing")}</li>
+									<li>{t("Set a catch-all rule to forward to this Worker")}</li>
+									<li>
+										{t("Add the sending domain in Resend and configure DNS")}
+									</li>
+									<li>{t("Verify SPF / DKIM records")}</li>
 								</ul>
 							</div>
 
 							{configSteps.length > 0 && (
 								<div className="rounded-lg border border-kumo-line divide-y divide-kumo-line">
 									{configSteps.map((step) => (
-										<div key={step.id} className="flex items-start gap-3 px-4 py-3">
+										<div
+											key={step.id}
+											className="flex items-start gap-3 px-4 py-3"
+										>
 											<StepIcon status={step.status} />
 											<div className="min-w-0 flex-1">
-												<div className="text-sm font-medium text-kumo-default">{step.label}</div>
+												<div className="text-sm font-medium text-kumo-default">
+													{t(step.label)}
+												</div>
 												{step.message && (
-													<div className={`text-xs mt-0.5 ${
-														step.status === "error" ? "text-red-600" : "text-kumo-subtle"
-													}`}>
-														{step.message}
+													<div
+														className={`text-xs mt-0.5 ${
+															step.status === "error"
+																? "text-red-600"
+																: "text-kumo-subtle"
+														}`}
+													>
+														{t(step.message)}
 													</div>
 												)}
 											</div>
@@ -249,8 +305,13 @@ export default function SetupRoute() {
 
 							{configError && (
 								<div className="flex items-start gap-2 rounded-lg bg-red-50 border border-red-200 px-4 py-3">
-									<WarningCircleIcon size={18} className="text-red-600 shrink-0 mt-0.5" />
-									<Text variant="error" size="sm">{configError}</Text>
+									<WarningCircleIcon
+										size={18}
+										className="text-red-600 shrink-0 mt-0.5"
+									/>
+									<Text variant="error" size="sm">
+										{t(configError)}
+									</Text>
 								</div>
 							)}
 
@@ -261,7 +322,7 @@ export default function SetupRoute() {
 									onClick={() => setWizardStep("credentials")}
 									disabled={runSetup.isPending}
 								>
-									返回
+									{t("Back")}
 								</Button>
 								<Button
 									variant="primary"
@@ -270,7 +331,7 @@ export default function SetupRoute() {
 									loading={runSetup.isPending}
 									onClick={handleRunSetup}
 								>
-									{configSteps.length > 0 ? "重试配置" : "开始配置"}
+									{configSteps.length > 0 ? t("Retry setup") : t("Start setup")}
 								</Button>
 							</div>
 						</div>
@@ -278,11 +339,20 @@ export default function SetupRoute() {
 
 					{wizardStep === "complete" && (
 						<div className="text-center space-y-5">
-							<CheckCircleIcon size={48} className="text-green-600 mx-auto" weight="fill" />
+							<CheckCircleIcon
+								size={48}
+								className="text-green-600 mx-auto"
+								weight="fill"
+							/>
 							<div>
-								<h2 className="text-base font-semibold text-kumo-default">配置完成</h2>
+								<h2 className="text-base font-semibold text-kumo-default">
+									{t("Setup complete")}
+								</h2>
 								<p className="text-sm text-kumo-subtle mt-1">
-									{domain} 的收信和发信已就绪，现在可以创建邮箱了。
+									{t(
+										"Receiving and sending are ready for {domain}. You can now create your mailbox.",
+										{ domain },
+									)}
 								</p>
 							</div>
 							<Button
@@ -290,14 +360,14 @@ export default function SetupRoute() {
 								className="w-full"
 								onClick={() => navigate("/")}
 							>
-								创建第一个邮箱
+								{t("Create your first mailbox")}
 							</Button>
 						</div>
 					)}
 				</div>
 
 				<p className="text-xs text-kumo-subtle text-center mt-6">
-					基于 Cloudflare Email Routing + Resend 的免费域名邮箱方案
+					{t("Free domain email powered by Cloudflare Email Routing + Resend")}
 				</p>
 			</div>
 		</div>

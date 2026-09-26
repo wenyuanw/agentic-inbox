@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 //     https://opensource.org/licenses/Apache-2.0
 
+import { useI18n } from "~/hooks/useI18n";
 import { Loader } from "@cloudflare/kumo";
 import { PlugsIcon, RobotIcon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
@@ -9,24 +10,26 @@ import { useUIStore } from "~/hooks/useUIStore";
 import MCPPanel from "./MCPPanel";
 
 function LazyAgentPanel() {
-	const [AgentChat, setAgentChat] = useState<React.ComponentType | null>(
-		null,
-	);
+	const { t } = useI18n();
+
+	const [AgentChat, setAgentChat] = useState<React.ComponentType | null>(null);
 	const [loadError, setLoadError] = useState<string | null>(null);
 
 	useEffect(() => {
-		import("~/components/AgentPanel").then((mod) => {
-			setAgentChat(() => mod.default);
-		}).catch((err) => {
-			console.error("Failed to load AgentPanel:", err);
-			setLoadError("Failed to load agent panel");
-		});
+		import("~/components/AgentPanel")
+			.then((mod) => {
+				setAgentChat(() => mod.default);
+			})
+			.catch((err) => {
+				console.error("Failed to load AgentPanel:", err);
+				setLoadError(t("Failed to load agent panel"));
+			});
 	}, []);
 
 	if (loadError) {
 		return (
 			<div className="flex items-center justify-center h-full">
-				<span className="text-xs text-kumo-error">{loadError}</span>
+				<span className="text-xs text-kumo-error">{t(loadError)}</span>
 			</div>
 		);
 	}
@@ -34,7 +37,9 @@ function LazyAgentPanel() {
 		return (
 			<div className="flex flex-col items-center justify-center h-full gap-2">
 				<Loader size="base" />
-				<span className="text-xs text-kumo-subtle">Loading agent...</span>
+				<span className="text-xs text-kumo-subtle">
+					{t("Loading agent...")}
+				</span>
 			</div>
 		);
 	}
@@ -42,17 +47,27 @@ function LazyAgentPanel() {
 }
 
 export default function AgentSidebar() {
+	const { t } = useI18n();
+
 	const { assistantTab: activeTab, openAssistant: setActiveTab } = useUIStore();
 	const [agentOpened, setAgentOpened] = useState(activeTab === "agent");
-	useEffect(() => { if (activeTab === "agent") setAgentOpened(true); }, [activeTab]);
+	useEffect(() => {
+		if (activeTab === "agent") setAgentOpened(true);
+	}, [activeTab]);
 
 	return (
 		<div className="mail-assistant-body flex flex-col flex-1 min-h-0">
 			{/* Tab bar */}
-			<div className="flex items-center border-b border-kumo-line shrink-0" role="tablist" aria-label="Assistant tools">
+			<div
+				className="flex items-center border-b border-kumo-line shrink-0"
+				role="tablist"
+				aria-label={t("Assistant tools")}
+			>
 				<button
 					type="button"
-					role="tab" aria-selected={activeTab === "agent"} aria-controls="assistant-agent"
+					role="tab"
+					aria-selected={activeTab === "agent"}
+					aria-controls="assistant-agent"
 					onClick={() => setActiveTab("agent")}
 					className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 bg-transparent cursor-pointer ${
 						activeTab === "agent"
@@ -60,12 +75,17 @@ export default function AgentSidebar() {
 							: "border-transparent text-kumo-subtle hover:text-kumo-default"
 					}`}
 				>
-					<RobotIcon size={14} weight={activeTab === "agent" ? "fill" : "regular"} />
-					Agent
+					<RobotIcon
+						size={14}
+						weight={activeTab === "agent" ? "fill" : "regular"}
+					/>
+					{t("Agent")}
 				</button>
 				<button
 					type="button"
-					role="tab" aria-selected={activeTab === "mcp"} aria-controls="assistant-mcp"
+					role="tab"
+					aria-selected={activeTab === "mcp"}
+					aria-controls="assistant-mcp"
 					onClick={() => setActiveTab("mcp")}
 					className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 bg-transparent cursor-pointer ${
 						activeTab === "mcp"
@@ -73,17 +93,34 @@ export default function AgentSidebar() {
 							: "border-transparent text-kumo-subtle hover:text-kumo-default"
 					}`}
 				>
-					<PlugsIcon size={14} weight={activeTab === "mcp" ? "fill" : "regular"} />
+					<PlugsIcon
+						size={14}
+						weight={activeTab === "mcp" ? "fill" : "regular"}
+					/>
 					MCP
 				</button>
 			</div>
 
 			{/* Tab content — keep agent mounted so chat isn't lost */}
 			<div className="flex-1 min-h-0 overflow-hidden">
-				<div id="assistant-agent" role="tabpanel" aria-label="Agent" className={activeTab === "agent" ? "h-full" : "hidden"}>
+				<div
+					id="assistant-agent"
+					role="tabpanel"
+					aria-label={t("Agent")}
+					className={activeTab === "agent" ? "h-full" : "hidden"}
+				>
 					{agentOpened && <LazyAgentPanel />}
 				</div>
-				{activeTab === "mcp" && <div id="assistant-mcp" role="tabpanel" aria-label="MCP connections" className="h-full"><MCPPanel /></div>}
+				{activeTab === "mcp" && (
+					<div
+						id="assistant-mcp"
+						role="tabpanel"
+						aria-label={t("MCP connections")}
+						className="h-full"
+					>
+						<MCPPanel />
+					</div>
+				)}
 			</div>
 		</div>
 	);

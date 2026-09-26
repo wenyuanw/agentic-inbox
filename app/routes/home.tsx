@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 //     https://opensource.org/licenses/Apache-2.0
 
+import { useI18n } from "~/hooks/useI18n";
+import LanguageSelect from "~/components/LanguageSelect";
 import {
 	Button,
 	Dialog,
@@ -36,6 +38,8 @@ export function meta() {
 }
 
 export default function HomeRoute() {
+	const { t } = useI18n();
+
 	const navigate = useNavigate();
 	const toastManager = useKumoToastManager();
 	const { data: setupStatus, isLoading: setupLoading } = useSetupStatus();
@@ -121,7 +125,7 @@ export default function HomeRoute() {
 		e.preventDefault();
 		setCreateError(null);
 		if (!newPrefix || !selectedDomain) {
-			setCreateError("Please fill in all fields");
+			setCreateError(t("Please fill in all fields"));
 			return;
 		}
 		const email = `${newPrefix}@${selectedDomain}`;
@@ -129,14 +133,14 @@ export default function HomeRoute() {
 		setIsCreating(true);
 		try {
 			await createMailbox.mutateAsync({ email, name });
-			toastManager.add({ title: "Mailbox created successfully!" });
+			toastManager.add({ title: t("Mailbox created successfully!") });
 			setIsCreateOpen(false);
 			setNewPrefix("");
 			setNewName("");
 		} catch (err: unknown) {
 			const message =
-				(err instanceof Error ? err.message : null) ||
-				"Failed to create mailbox";
+				(err instanceof Error ? t(err.message) : null) ||
+				t("Failed to create mailbox");
 			setCreateError(message);
 		} finally {
 			setIsCreating(false);
@@ -148,11 +152,14 @@ export default function HomeRoute() {
 		setIsDeleting(true);
 		try {
 			await deleteMailbox.mutateAsync(mailboxToDelete.id);
-			toastManager.add({ title: "Mailbox deleted" });
+			toastManager.add({ title: t("Mailbox deleted") });
 			setIsDeleteOpen(false);
 			setMailboxToDelete(null);
 		} catch {
-			toastManager.add({ title: "Failed to delete mailbox", variant: "error" });
+			toastManager.add({
+				title: t("Failed to delete mailbox"),
+				variant: "error",
+			});
 		} finally {
 			setIsDeleting(false);
 		}
@@ -173,13 +180,18 @@ export default function HomeRoute() {
 		<div className="mail-home-page">
 			<header className="mail-home-brand">
 				<MailBrand />
+				<LanguageSelect />
 			</header>
 			<div className="mail-home-content">
 				<div className="mb-8">
 					<div className="flex items-center justify-between">
 						<div>
-							<p className="mail-home-eyebrow">A little more room to focus</p>
-							<h1 className="mail-home-heading">Your mail, in one place.</h1>
+							<p className="mail-home-eyebrow">
+								{t("A little more room to focus")}
+							</p>
+							<h1 className="mail-home-heading">
+								{t("Your mail, in one place.")}
+							</h1>
 						</div>
 						{!isConfigured && (
 							<Button
@@ -187,13 +199,13 @@ export default function HomeRoute() {
 								icon={<PlusIcon size={16} />}
 								onClick={() => setIsCreateOpen(true)}
 							>
-								New Mailbox
+								{t("New Mailbox")}
 							</Button>
 						)}
 					</div>
 					{domains.length > 0 && (
 						<p className="text-sm text-kumo-subtle mt-1">
-							Choose a mailbox to pick up where you left off.{" "}
+							{t("Choose a mailbox to pick up where you left off.")}{" "}
 							{domains.join(", ")}
 						</p>
 					)}
@@ -222,7 +234,9 @@ export default function HomeRoute() {
 								</RouterLink>
 								{!isConfigured && (
 									<MailIconButton
-										label={`Delete mailbox ${account.email}`}
+										label={t("Delete mailbox {email}", {
+											email: account.email,
+										})}
 										onClick={() => {
 											setMailboxToDelete({
 												id: account.id,
@@ -248,12 +262,16 @@ export default function HomeRoute() {
 								/>
 							</div>
 							<h3 className="text-base font-semibold text-kumo-default mb-1.5">
-								No mailboxes yet
+								{t("No mailboxes yet")}
 							</h3>
 							<p className="text-sm text-kumo-subtle max-w-sm mb-5">
 								{isConfigured
-									? "Your email routing is configured but no mailboxes have been created yet. They will appear here automatically."
-									: "Create a mailbox to start sending and receiving emails with your domain."}
+									? t(
+											"Your email routing is configured but no mailboxes have been created yet. They will appear here automatically.",
+										)
+									: t(
+											"Create a mailbox to start sending and receiving emails with your domain.",
+										)}
 							</p>
 							{!isConfigured && (
 								<Button
@@ -261,7 +279,7 @@ export default function HomeRoute() {
 									icon={<PlusIcon size={16} />}
 									onClick={() => setIsCreateOpen(true)}
 								>
-									Create Mailbox
+									{t("Create Mailbox")}
 								</Button>
 							)}
 						</div>
@@ -273,7 +291,7 @@ export default function HomeRoute() {
 			<Dialog.Root open={isCreateOpen} onOpenChange={setIsCreateOpen}>
 				<Dialog size="sm" className="p-6 mail-dialog">
 					<Dialog.Title className="text-base font-semibold mb-5">
-						Create New Mailbox
+						{t("Create New Mailbox")}
 					</Dialog.Title>
 					<form onSubmit={handleCreate} className="space-y-4">
 						{createError && (
@@ -283,12 +301,12 @@ export default function HomeRoute() {
 						)}
 						<div>
 							<span className="text-sm font-medium text-kumo-default mb-1.5 block">
-								Email Address
+								{t("Email Address")}
 							</span>
 							<div className="flex items-center gap-2">
 								<div className="flex-1">
 									<Input
-										aria-label="Address prefix"
+										aria-label={t("Address prefix")}
 										placeholder="info"
 										size="sm"
 										value={newPrefix}
@@ -300,7 +318,7 @@ export default function HomeRoute() {
 								{domains.length > 1 ? (
 									<div className="flex-1">
 										<Select
-											aria-label="Domain"
+											aria-label={t("Domain")}
 											value={selectedDomain}
 											onValueChange={(value) => {
 												if (value) setSelectedDomain(value);
@@ -315,14 +333,14 @@ export default function HomeRoute() {
 									</div>
 								) : (
 									<span className="text-sm text-kumo-subtle">
-										{selectedDomain || "no domain"}
+										{selectedDomain || t("no domain")}
 									</span>
 								)}
 							</div>
 						</div>
 						<Input
-							label="Display Name (optional)"
-							placeholder="Info"
+							label={t("Display Name (optional)")}
+							placeholder={t("e.g. Customer support")}
 							size="sm"
 							value={newName}
 							onChange={(e) => setNewName(e.target.value)}
@@ -331,7 +349,7 @@ export default function HomeRoute() {
 							<Dialog.Close
 								render={(props) => (
 									<Button {...props} variant="secondary" size="sm">
-										Cancel
+										{t("Cancel")}
 									</Button>
 								)}
 							/>
@@ -342,7 +360,7 @@ export default function HomeRoute() {
 								loading={isCreating}
 								disabled={!selectedDomain}
 							>
-								Create
+								{t("Create")}
 							</Button>
 						</div>
 					</form>
@@ -359,20 +377,20 @@ export default function HomeRoute() {
 			>
 				<Dialog size="sm" className="p-6 mail-dialog">
 					<Dialog.Title className="text-base font-semibold mb-2">
-						Delete Mailbox
+						{t("Delete Mailbox")}
 					</Dialog.Title>
 					<Dialog.Description className="text-kumo-subtle text-sm mb-5">
-						Are you sure you want to delete{" "}
+						{t("Are you sure you want to delete")}{" "}
 						<strong className="text-kumo-default">
 							{mailboxToDelete?.email}
 						</strong>
-						? This action cannot be undone.
+						{t("? This action cannot be undone.")}
 					</Dialog.Description>
 					<div className="flex justify-end gap-2">
 						<Dialog.Close
 							render={(props) => (
 								<Button {...props} variant="secondary" size="sm">
-									Cancel
+									{t("Cancel")}
 								</Button>
 							)}
 						/>
@@ -382,7 +400,7 @@ export default function HomeRoute() {
 							loading={isDeleting}
 							onClick={handleDelete}
 						>
-							Delete
+							{t("Delete")}
 						</Button>
 					</div>
 				</Dialog>
