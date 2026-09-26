@@ -120,13 +120,13 @@ export default function SetupRoute() {
 	}
 
 	return (
-		<div className="min-h-screen bg-kumo-recessed">
+		<div className="mail-setup-page min-h-screen bg-kumo-recessed">
 			<div className="mx-auto max-w-lg px-4 py-10 md:py-16">
 				<div className="text-center mb-8">
 					<div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-kumo-base border border-kumo-line mb-4">
 						<EnvelopeIcon size={28} className="text-kumo-default" />
 					</div>
-					<h1 className="text-2xl font-bold text-kumo-default">配置域名邮箱</h1>
+					<h1 className="text-2xl font-normal text-kumo-default">配置域名邮箱</h1>
 					<p className="text-sm text-kumo-subtle mt-2 max-w-sm mx-auto">
 						填入 Cloudflare 和 Resend 的 API Key，自动完成收信路由与发信域名验证
 					</p>
@@ -152,7 +152,7 @@ export default function SetupRoute() {
 					))}
 				</div>
 
-				<div className="rounded-xl border border-kumo-line bg-kumo-base p-6">
+				<div className="mail-setup-card rounded-xl border border-kumo-line bg-kumo-base p-6">
 					{wizardStep === "credentials" && (
 						<form onSubmit={handleValidate} className="space-y-5">
 							<div>

@@ -5,6 +5,7 @@
 import { Loader } from "@cloudflare/kumo";
 import { PlugsIcon, RobotIcon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
+import { useUIStore } from "~/hooks/useUIStore";
 import MCPPanel from "./MCPPanel";
 
 function LazyAgentPanel() {
@@ -41,14 +42,17 @@ function LazyAgentPanel() {
 }
 
 export default function AgentSidebar() {
-	const [activeTab, setActiveTab] = useState<"agent" | "mcp">("agent");
+	const { assistantTab: activeTab, openAssistant: setActiveTab } = useUIStore();
+	const [agentOpened, setAgentOpened] = useState(activeTab === "agent");
+	useEffect(() => { if (activeTab === "agent") setAgentOpened(true); }, [activeTab]);
 
 	return (
-		<div className="flex flex-col h-full">
+		<div className="mail-assistant-body flex flex-col flex-1 min-h-0">
 			{/* Tab bar */}
-			<div className="flex items-center border-b border-kumo-line shrink-0">
+			<div className="flex items-center border-b border-kumo-line shrink-0" role="tablist" aria-label="Assistant tools">
 				<button
 					type="button"
+					role="tab" aria-selected={activeTab === "agent"} aria-controls="assistant-agent"
 					onClick={() => setActiveTab("agent")}
 					className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 bg-transparent cursor-pointer ${
 						activeTab === "agent"
@@ -61,6 +65,7 @@ export default function AgentSidebar() {
 				</button>
 				<button
 					type="button"
+					role="tab" aria-selected={activeTab === "mcp"} aria-controls="assistant-mcp"
 					onClick={() => setActiveTab("mcp")}
 					className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 bg-transparent cursor-pointer ${
 						activeTab === "mcp"
@@ -75,10 +80,10 @@ export default function AgentSidebar() {
 
 			{/* Tab content — keep agent mounted so chat isn't lost */}
 			<div className="flex-1 min-h-0 overflow-hidden">
-				<div className={activeTab === "agent" ? "h-full" : "hidden"}>
-					<LazyAgentPanel />
+				<div id="assistant-agent" role="tabpanel" aria-label="Agent" className={activeTab === "agent" ? "h-full" : "hidden"}>
+					{agentOpened && <LazyAgentPanel />}
 				</div>
-				{activeTab === "mcp" && <MCPPanel />}
+				{activeTab === "mcp" && <div id="assistant-mcp" role="tabpanel" aria-label="MCP connections" className="h-full"><MCPPanel /></div>}
 			</div>
 		</div>
 	);

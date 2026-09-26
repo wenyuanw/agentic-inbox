@@ -57,7 +57,7 @@ export default function EmailIframe({ body, autoSize }: EmailIframeProps) {
 
 	useEffect(() => {
 		const iframe = iframeRef.current;
-		if (!iframe || !body) return;
+		if (!iframe) return;
 
 		const cleanBody = DOMPurify.sanitize(body, {
 			USE_PROFILES: { html: true },
@@ -74,9 +74,12 @@ export default function EmailIframe({ body, autoSize }: EmailIframeProps) {
 		const heightScript = autoSize
 			? `<script>
 				function reportHeight() {
-					var h = document.body.scrollHeight;
+					var h = Math.max(1, Math.ceil(document.body.getBoundingClientRect().height));
 					if (h > 0) parent.postMessage({ __emailIframeHeight: true, height: h }, "*");
 				}
+				new ResizeObserver(reportHeight).observe(document.body);
+				window.addEventListener("resize", reportHeight);
+				document.addEventListener("load", reportHeight, true);
 				reportHeight();
 				setTimeout(reportHeight, 50);
 				setTimeout(reportHeight, 150);

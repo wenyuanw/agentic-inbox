@@ -39,7 +39,7 @@ export default function RichTextEditor({
 }: RichTextEditorProps) {
 	const editor = useEditor({
 		extensions: [
-			StarterKit,
+			StarterKit.configure({ link: false, underline: false }),
 			Underline,
 			TextAlign.configure({ types: ["heading", "paragraph"] }),
 			LinkExtension.configure({ openOnClick: false }),
@@ -49,8 +49,12 @@ export default function RichTextEditor({
 			Highlight.configure({ multicolor: true }),
 		],
 		content: value,
+		immediatelyRender: false,
 		editorProps: {
 			attributes: {
+				role: "textbox",
+				"aria-label": "Message body",
+				"aria-multiline": "true",
 				class:
 					"prose prose-sm max-w-none focus:outline-none min-h-[180px] p-3 text-sm [&_blockquote]:border-l-2 [&_blockquote]:border-kumo-line [&_blockquote]:pl-3 [&_blockquote]:text-kumo-subtle [&_blockquote]:bg-kumo-tint [&_blockquote]:py-1 [&_blockquote]:my-2 [&_blockquote]:text-xs [&_blockquote]:rounded-r-sm",
 			},
@@ -63,13 +67,6 @@ export default function RichTextEditor({
 	useEffect(() => {
 		if (editor && !editor.isDestroyed && value !== editor.getHTML()) {
 			editor.commands.setContent(value);
-			// Place cursor at the start of the document (above quoted text)
-			const rafId = requestAnimationFrame(() => {
-				if (!editor.isDestroyed) {
-					editor.commands.focus('start');
-				}
-			});
-			return () => cancelAnimationFrame(rafId);
 		}
 	}, [value, editor]);
 
@@ -90,7 +87,7 @@ export default function RichTextEditor({
 	return (
 		<div className="rounded-lg border border-kumo-line overflow-hidden flex flex-col h-full">
 			{/* Toolbar */}
-			<div className="flex flex-wrap items-center gap-0.5 bg-kumo-recessed px-2 py-1.5 border-b border-kumo-line shrink-0">
+			<div className="mail-editor-toolbar flex flex-wrap items-center gap-0.5 bg-kumo-recessed px-2 py-1.5 border-b border-kumo-line shrink-0">
 				{/* Text formatting */}
 				<Tooltip content="Bold" side="bottom" asChild>
 					<Button

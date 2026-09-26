@@ -3,6 +3,7 @@
 //     https://opensource.org/licenses/Apache-2.0
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useUIStore } from "~/hooks/useUIStore";
 import api from "~/services/api";
 import type { Email } from "~/types";
 import { queryKeys } from "./keys";
@@ -98,6 +99,7 @@ function useInvalidateEmailData() {
 	const qc = useQueryClient();
 	return (mailboxId: string) => {
 		qc.invalidateQueries({ queryKey: ["emails", mailboxId] });
+		qc.invalidateQueries({ queryKey: ["search", mailboxId] });
 		qc.invalidateQueries({
 			queryKey: queryKeys.folders.list(mailboxId),
 		});
@@ -118,6 +120,7 @@ export function useSendEmail() {
 
 export function useUpdateEmail() {
 	const qc = useQueryClient();
+	const showNotice = useUIStore((state) => state.showNotice);
 	return useMutation({
 		mutationFn: ({
 			mailboxId,
@@ -167,6 +170,7 @@ export function useUpdateEmail() {
 			return { listQueries, prevDetail, detailKey };
 		},
 		onError: (_err, _vars, context) => {
+			showNotice({ message: "Could not update this message. Please try again." });
 			// Roll back optimistic updates on failure
 			if (context?.listQueries) {
 				for (const [key, cached] of context.listQueries) {
@@ -179,6 +183,7 @@ export function useUpdateEmail() {
 		},
 		onSettled: (_data, _err, { mailboxId }) => {
 			// Always refetch to ensure server truth
+			qc.invalidateQueries({ queryKey: ["search", mailboxId] });
 			qc.invalidateQueries({ queryKey: ["emails", mailboxId] });
 			qc.invalidateQueries({
 				queryKey: queryKeys.folders.list(mailboxId),
@@ -196,6 +201,7 @@ export function useMarkThreadRead() {
 		}: { mailboxId: string; threadId: string }) =>
 			api.markThreadRead(mailboxId, threadId),
 		onSuccess: (_data, { mailboxId }) => {
+			qc.invalidateQueries({ queryKey: ["search", mailboxId] });
 			qc.invalidateQueries({ queryKey: ["emails", mailboxId] });
 			qc.invalidateQueries({
 				queryKey: queryKeys.folders.list(mailboxId),

@@ -5,17 +5,23 @@
 import {
 	Button,
 	Dialog,
-	Empty,
 	Input,
 	Loader,
 	Select,
 	Text,
 	useKumoToastManager,
 } from "@cloudflare/kumo";
-import { EnvelopeIcon, PlusIcon, TrashIcon } from "@phosphor-icons/react";
+import {
+	ArrowRightIcon,
+	EnvelopeIcon,
+	PlusIcon,
+	TrashIcon,
+} from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { Link as RouterLink, useNavigate } from "react-router";
+import MailBrand from "~/components/MailBrand";
+import MailIconButton from "~/components/MailIconButton";
 import api from "~/services/api";
 import {
 	useCreateMailbox,
@@ -33,7 +39,11 @@ export default function HomeRoute() {
 	const navigate = useNavigate();
 	const toastManager = useKumoToastManager();
 	const { data: setupStatus, isLoading: setupLoading } = useSetupStatus();
-	const { data: mailboxes = [], refetch: refetchMailboxes, isFetched: mailboxesFetched } = useMailboxes();
+	const {
+		data: mailboxes = [],
+		refetch: refetchMailboxes,
+		isFetched: mailboxesFetched,
+	} = useMailboxes();
 	const createMailbox = useCreateMailbox();
 	const deleteMailbox = useDeleteMailbox();
 
@@ -51,7 +61,8 @@ export default function HomeRoute() {
 		if (setupLoading || !setupStatus) return;
 		if (!setupStatus.completed) {
 			const envDomains = configData?.domains ?? [];
-			const needsSetup = envDomains.length === 0 || envDomains.every((d) => d === "example.com");
+			const needsSetup =
+				envDomains.length === 0 || envDomains.every((d) => d === "example.com");
 			if (needsSetup) {
 				navigate("/setup", { replace: true });
 			}
@@ -83,9 +94,7 @@ export default function HomeRoute() {
 	useEffect(() => {
 		if (autoCreateDone.current) return;
 		if (emailAddresses.length === 0 || !mailboxesFetched) return;
-		const existingEmails = new Set(
-			mailboxes.map((m) => m.email.toLowerCase()),
-		);
+		const existingEmails = new Set(mailboxes.map((m) => m.email.toLowerCase()));
 		const toCreate = emailAddresses.filter(
 			(addr) => !existingEmails.has(addr.toLowerCase()),
 		);
@@ -100,8 +109,12 @@ export default function HomeRoute() {
 				const localPart = addr.split("@")[0] || addr;
 				return api.createMailbox(addr, localPart).catch(() => {});
 			}),
-		).then(() => { if (!cancelled) refetchMailboxes(); });
-		return () => { cancelled = true; };
+		).then(() => {
+			if (!cancelled) refetchMailboxes();
+		});
+		return () => {
+			cancelled = true;
+		};
 	}, [emailAddresses, mailboxes, refetchMailboxes]);
 
 	const handleCreate = async (e: FormEvent) => {
@@ -121,7 +134,9 @@ export default function HomeRoute() {
 			setNewPrefix("");
 			setNewName("");
 		} catch (err: unknown) {
-			const message = (err instanceof Error ? err.message : null) || "Failed to create mailbox";
+			const message =
+				(err instanceof Error ? err.message : null) ||
+				"Failed to create mailbox";
 			setCreateError(message);
 		} finally {
 			setIsCreating(false);
@@ -155,11 +170,17 @@ export default function HomeRoute() {
 	const isLoading = !configData || setupLoading;
 
 	return (
-		<div className="min-h-screen bg-kumo-recessed">
-			<div className="mx-auto max-w-2xl px-4 py-8 md:px-6 md:py-16">
+		<div className="mail-home-page">
+			<header className="mail-home-brand">
+				<MailBrand />
+			</header>
+			<div className="mail-home-content">
 				<div className="mb-8">
 					<div className="flex items-center justify-between">
-						<h1 className="text-2xl font-bold text-kumo-default">Mailboxes</h1>
+						<div>
+							<p className="mail-home-eyebrow">A little more room to focus</p>
+							<h1 className="mail-home-heading">Your mail, in one place.</h1>
+						</div>
 						{!isConfigured && (
 							<Button
 								variant="primary"
@@ -172,6 +193,7 @@ export default function HomeRoute() {
 					</div>
 					{domains.length > 0 && (
 						<p className="text-sm text-kumo-subtle mt-1">
+							Choose a mailbox to pick up where you left off.{" "}
 							{domains.join(", ")}
 						</p>
 					)}
@@ -182,45 +204,37 @@ export default function HomeRoute() {
 						<Loader size="lg" />
 					</div>
 				) : accounts.length > 0 ? (
-					<div className="rounded-xl border border-kumo-line bg-kumo-base overflow-hidden">
-						{accounts.map((account, idx) => (
-							<RouterLink
-								key={account.id}
-								to={`/mailbox/${account.id}`}
-								className={`group flex items-center gap-4 px-5 py-4 no-underline transition-colors hover:bg-kumo-tint ${
-									idx > 0 ? "border-t border-kumo-line" : ""
-								}`}
-							>
-								<div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-kumo-fill text-sm font-bold text-kumo-default">
-									{account.name.charAt(0).toUpperCase()}
-								</div>
-								<div className="min-w-0 flex-1">
-									<div className="text-sm font-medium text-kumo-default truncate">
-										{account.name}
+					<div className="mail-account-list">
+						{accounts.map((account) => (
+							<div key={account.id} className="mail-account-card">
+								<RouterLink
+									to={`/mailbox/${account.id}`}
+									className="mail-account-open"
+								>
+									<div className="mail-home-avatar">
+										{account.name.charAt(0).toUpperCase()}
 									</div>
-									<div className="text-sm text-kumo-subtle">
-										{account.email}
+									<div className="mail-account-info">
+										<strong>{account.name}</strong>
+										<span>{account.email}</span>
 									</div>
-								</div>
+									<ArrowRightIcon size={20} />
+								</RouterLink>
 								{!isConfigured && (
-									<Button
-										variant="ghost"
-										size="sm"
-										shape="square"
-										icon={<TrashIcon size={16} />}
-										aria-label={`Delete mailbox ${account.email}`}
-										onClick={(e) => {
-											e.preventDefault();
-											e.stopPropagation();
+									<MailIconButton
+										label={`Delete mailbox ${account.email}`}
+										onClick={() => {
 											setMailboxToDelete({
 												id: account.id,
 												email: account.email,
 											});
 											setIsDeleteOpen(true);
 										}}
-									/>
+									>
+										<TrashIcon size={18} />
+									</MailIconButton>
 								)}
-							</RouterLink>
+							</div>
 						))}
 					</div>
 				) : (
@@ -257,7 +271,7 @@ export default function HomeRoute() {
 
 			{/* Create Dialog */}
 			<Dialog.Root open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-				<Dialog size="sm" className="p-6">
+				<Dialog size="sm" className="p-6 mail-dialog">
 					<Dialog.Title className="text-base font-semibold mb-5">
 						Create New Mailbox
 					</Dialog.Title>
@@ -285,13 +299,13 @@ export default function HomeRoute() {
 								<span className="text-sm text-kumo-subtle">@</span>
 								{domains.length > 1 ? (
 									<div className="flex-1">
-							<Select
-								aria-label="Domain"
-								value={selectedDomain}
-								onValueChange={(value) => {
-									if (value) setSelectedDomain(value);
-								}}
-							>
+										<Select
+											aria-label="Domain"
+											value={selectedDomain}
+											onValueChange={(value) => {
+												if (value) setSelectedDomain(value);
+											}}
+										>
 											{domains.map((d) => (
 												<Select.Option key={d} value={d}>
 													{d}
@@ -343,7 +357,7 @@ export default function HomeRoute() {
 					if (!open) setMailboxToDelete(null);
 				}}
 			>
-				<Dialog size="sm" className="p-6">
+				<Dialog size="sm" className="p-6 mail-dialog">
 					<Dialog.Title className="text-base font-semibold mb-2">
 						Delete Mailbox
 					</Dialog.Title>

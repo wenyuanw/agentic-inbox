@@ -1,110 +1,351 @@
-// Copyright (c) 2026 Cloudflare, Inc.
-// Licensed under the Apache 2.0 license found in the LICENSE file or at:
-//     https://opensource.org/licenses/Apache-2.0
-
-import { Badge, Button, Loader, Pagination, Tooltip } from "@cloudflare/kumo";
-import { ArrowLeftIcon, MagnifyingGlassIcon } from "@phosphor-icons/react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Dialog } from "@cloudflare/kumo";
+import {
+	ArchiveIcon,
+	ArrowLeftIcon,
+	ArrowClockwiseIcon,
+	CaretLeftIcon,
+	CaretRightIcon,
+	EnvelopeOpenIcon,
+	EnvelopeSimpleIcon,
+	MagnifyingGlassIcon,
+	StarIcon,
+	TrashIcon,
+} from "@phosphor-icons/react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
+import { Folders, getFolderDisplayName } from "shared/folders";
+import EmailRow from "~/components/EmailRow";
+import MailIconButton from "~/components/MailIconButton";
 import MailboxSplitView from "~/components/MailboxSplitView";
-import { formatListDate, getSnippetText } from "~/lib/utils";
-import { useUpdateEmail } from "~/queries/emails";
-import { useSearchEmails, SEARCH_PAGE_SIZE } from "~/queries/search";
+import { useMailActions } from "~/hooks/useMailActions";
 import { useUIStore } from "~/hooks/useUIStore";
+import { useDeleteEmail, useUpdateEmail } from "~/queries/emails";
+import { useSearchEmails, SEARCH_PAGE_SIZE } from "~/queries/search";
 import type { Email } from "~/types";
 
-function highlightTerms(text: string, query: string): React.ReactNode {
-	if (!query || !text) return text;
-	const freeText = query.replace(/\b(?:from|to|subject|in|is|has|before|after):"[^"]*"/gi, "").replace(/\b(?:from|to|subject|in|is|has|before|after):\S+/gi, "").trim();
-	if (!freeText) return text;
-	try {
-		const escaped = freeText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-		const regex = new RegExp(`(${escaped})`, "gi");
-		const parts = text.split(regex);
-		if (parts.length === 1) return text;
-		// Use case-insensitive string comparison instead of regex.test() with g flag,
-		// which has stateful lastIndex causing alternating true/false results.
-		const lowerEscaped = escaped.toLowerCase();
-		return parts.map((part, i) => part.toLowerCase() === lowerEscaped ? <mark key={i} className="bg-kumo-warning-muted text-kumo-default rounded-sm px-0.5">{part}</mark> : part);
-	} catch { return text; }
+function highlightTerms(text: string, query: string) {
+	const term = query
+		.replace(
+			/\b(?:from|to|subject|in|is|has|before|after):(?:"[^"]*"|\S+)/gi,
+			"",
+		)
+		.trim();
+	if (!term) return text;
+	const parts = text.split(
+		new RegExp(`(${term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi"),
+	);
+	return parts.map((part, index) =>
+		part.toLowerCase() === term.toLowerCase() ? (
+			<mark key={index}>{part}</mark>
+		) : (
+			part
+		),
+	);
 }
-
 export default function SearchResultsRoute() {
 	const { mailboxId } = useParams<{ mailboxId: string }>();
-	const [searchParams] = useSearchParams();
+	const [params] = useSearchParams();
+	const query = params.get("q") || "";
+	const starred = query === "is:starred";
 	const navigate = useNavigate();
-	const { selectedEmailId, isComposing, selectEmail, closePanel } = useUIStore();
-	const updateEmail = useUpdateEmail();
-	const urlQuery = searchParams.get("q") || "";
+	const { selectedEmailId, selectEmail, closePanel, showNotice } = useUIStore();
 	const [page, setPage] = useState(1);
-	const searchKey = useMemo(
-		() => `${mailboxId ?? ""}::${urlQuery}`,
-		[mailboxId, urlQuery],
-	);
-	const prevSearchKeyRef = useRef(searchKey);
-	const searchChanged = prevSearchKeyRef.current !== searchKey;
-	const currentPage = searchChanged ? 1 : page;
-
-	useEffect(() => {
-		if (!searchChanged) {
-			return;
-		}
-
-		prevSearchKeyRef.current = searchKey;
-		setPage(1);
-		closePanel();
-	}, [closePanel, searchChanged, searchKey]);
-
-	const { data: searchData, isLoading } = useSearchEmails(
+	const [selection, setSelection] = useState<Set<string>>(new Set());
+	const [permanent, setPermanent] = useState<Email | null>(null);
+	const selectAll = useRef<HTMLInputElement>(null);
+	const prevQuery = useRef(query);
+	const currentPage = prevQuery.current !== query ? 1 : page;
+	const { data, isLoading, isError, isFetching, refetch } = useSearchEmails(
 		mailboxId,
-		urlQuery,
+		query,
 		currentPage,
 	);
-	const results = searchData?.results ?? [];
-	const totalCount = searchData?.totalCount ?? 0;
-	const isPanelOpen = selectedEmailId !== null || isComposing;
-
-	const handleRowClick = (email: Email) => { selectEmail(email.id); if (!email.read && mailboxId) updateEmail.mutate({ mailboxId, id: email.id, data: { read: true } }); };
-	const folderDisplayName = (name: string | null | undefined): string => { if (!name) return ""; const map: Record<string, string> = { inbox: "Inbox", sent: "Sent", draft: "Drafts", archive: "Archive", trash: "Trash" }; return map[name.toLowerCase()] || name; };
-
+	const results = data?.results || [];
+	const total = data?.totalCount || 0;
+	const update = useUpdateEmail();
+	const remove = useDeleteEmail();
+	const actions = useMailActions(mailboxId);
+	const selected = results.filter((email) => selection.has(email.id));
+	useEffect(() => {
+		prevQuery.current = query;
+		setPage(1);
+		setSelection(new Set());
+		closePanel();
+	}, [query, mailboxId, closePanel]);
+	useEffect(() => {
+		setSelection(new Set());
+	}, [currentPage]);
+	useEffect(() => {
+		if (selectAll.current)
+			selectAll.current.indeterminate =
+				selected.length > 0 && selected.length < results.length;
+	}, [selected.length, results.length]);
+	useEffect(() => {
+		if (
+			currentPage > 1 &&
+			data &&
+			total <= (currentPage - 1) * SEARCH_PAGE_SIZE
+		)
+			setPage(Math.max(1, Math.ceil(total / SEARCH_PAGE_SIZE)));
+	}, [currentPage, total, data]);
+	const move = async (emails: Email[], folder: string) => {
+		if (await actions.move(emails, folder)) setSelection(new Set());
+	};
+	const open = (email: Email) => {
+		selectEmail(email.id);
+		if (mailboxId && !email.read)
+			update.mutate({ mailboxId, id: email.id, data: { read: true } });
+	};
+	const deletePermanently = async () => {
+		if (!permanent || !mailboxId) return;
+		try {
+			await remove.mutateAsync({ mailboxId, id: permanent.id });
+			setPermanent(null);
+			showNotice({ message: "Message deleted permanently" });
+		} catch {
+			showNotice({
+				message: "Could not delete this message. Please try again.",
+			});
+		}
+	};
 	return (
-		<MailboxSplitView
-			selectedEmailId={selectedEmailId}
-			isComposing={isComposing}
-		>
-			<>
-				<div className="flex items-center gap-2 px-4 py-3.5 border-b border-kumo-line shrink-0 md:px-5">
-					<Tooltip content="Back to inbox" side="bottom" asChild><Button variant="ghost" shape="square" size="sm" icon={<ArrowLeftIcon size={18} />} onClick={() => navigate(`/mailbox/${mailboxId}/emails/inbox`)} aria-label="Back to inbox" /></Tooltip>
-					<div className="min-w-0 flex-1"><h1 className="text-lg font-semibold text-kumo-default truncate">Search Results</h1>{!isLoading && <span className="text-sm text-kumo-subtle">{totalCount} result{totalCount !== 1 ? "s" : ""}{urlQuery ? ` for "${urlQuery}"` : ""}</span>}</div>
+		<MailboxSplitView selectedEmailId={selectedEmailId}>
+			<div
+				className={`mail-list-toolbar ${selected.length ? "has-selection" : ""}`}
+			>
+				<MailIconButton
+					label="Back to inbox"
+					onClick={() => navigate(`/mailbox/${mailboxId}/emails/inbox`)}
+				>
+					<ArrowLeftIcon size={19} />
+				</MailIconButton>
+				<div className="mail-select-all">
+					<input
+						ref={selectAll}
+						className="mail-checkbox"
+						type="checkbox"
+						aria-label="Select all results on this page"
+						disabled={!results.length || actions.busy}
+						checked={!!results.length && selected.length === results.length}
+						onChange={() =>
+							setSelection(
+								selected.length === results.length
+									? new Set()
+									: new Set(results.map((email) => email.id)),
+							)
+						}
+					/>
 				</div>
-				<div className="flex-1 overflow-y-auto">
-					{isLoading ? <div className="flex justify-center py-16"><Loader size="lg" /></div> : results.length === 0 ? (
-						<div className="flex flex-col items-center justify-center py-24 px-6 text-center">
-							<div className="mb-4"><MagnifyingGlassIcon size={48} weight="thin" className="text-kumo-subtle" /></div>
-							<h3 className="text-base font-semibold text-kumo-default mb-1.5">No results found</h3>
-							<p className="text-sm text-kumo-subtle max-w-xs">{urlQuery ? `Nothing matched "${urlQuery}". Try different keywords or check your spelling.` : "Enter a search term to find emails by subject, sender, or content."}</p>
-							{urlQuery && <p className="text-xs text-kumo-subtle mt-3 max-w-sm">Tip: Use operators like <code className="bg-kumo-tint px-1 rounded">from:name</code>, <code className="bg-kumo-tint px-1 rounded">is:unread</code>, <code className="bg-kumo-tint px-1 rounded">has:attachment</code>, <code className="bg-kumo-tint px-1 rounded">before:2025-01-01</code></p>}
+				{selected.length ? (
+					<>
+						<span className="mail-selection-count">
+							{selected.length} selected
+						</span>
+						<MailIconButton
+							label="Archive selected"
+							disabled={actions.busy}
+							onClick={() =>
+								void move(
+									selected.filter(
+										(email) =>
+											email.folder_id !== Folders.DRAFT &&
+											email.folder_id !== Folders.SENT,
+									),
+									Folders.ARCHIVE,
+								)
+							}
+						>
+							<ArchiveIcon size={20} />
+						</MailIconButton>
+						<MailIconButton
+							label="Move selected to Trash"
+							disabled={actions.busy}
+							onClick={() => void move(selected, Folders.TRASH)}
+						>
+							<TrashIcon size={20} />
+						</MailIconButton>
+						<MailIconButton
+							label="Mark selected as read"
+							disabled={actions.busy}
+							onClick={() => void actions.markRead(selected, true)}
+						>
+							<EnvelopeOpenIcon size={20} />
+						</MailIconButton>
+						<MailIconButton
+							label="Mark selected as unread"
+							disabled={actions.busy}
+							onClick={() => void actions.markRead(selected, false)}
+						>
+							<EnvelopeSimpleIcon size={20} />
+						</MailIconButton>
+					</>
+				) : (
+					<MailIconButton
+						label="Refresh search"
+						disabled={isFetching}
+						onClick={() => void refetch()}
+					>
+						<ArrowClockwiseIcon size={20} />
+					</MailIconButton>
+				)}
+				<div className="mail-pagination">
+					<span>
+						{total
+							? `${(currentPage - 1) * SEARCH_PAGE_SIZE + 1}–${Math.min(currentPage * SEARCH_PAGE_SIZE, total)} of ${total}`
+							: "0 results"}
+					</span>
+					<MailIconButton
+						label="Previous page"
+						disabled={currentPage <= 1 || isFetching}
+						onClick={() => setPage(currentPage - 1)}
+					>
+						<CaretLeftIcon size={18} />
+					</MailIconButton>
+					<MailIconButton
+						label="Next page"
+						disabled={currentPage * SEARCH_PAGE_SIZE >= total || isFetching}
+						onClick={() => setPage(currentPage + 1)}
+					>
+						<CaretRightIcon size={18} />
+					</MailIconButton>
+				</div>
+			</div>
+			<div className="mail-folder-title">
+				<h1>
+					{starred ? <StarIcon size={20} /> : <MagnifyingGlassIcon size={20} />}
+					{starred ? "Starred" : "Search results"}
+				</h1>
+				<span>
+					{starred
+						? "The messages you want to keep close."
+						: query
+							? `Results for “${query}”`
+							: "Search your mail"}
+				</span>
+			</div>
+			<div className="mail-list-scroll">
+				{isLoading ? (
+					<div className="mail-list-skeleton" aria-label="Searching mail">
+						{Array.from({ length: 8 }, (_, index) => (
+							<div key={index}>
+								<span />
+								<span />
+								<span />
+							</div>
+						))}
+					</div>
+				) : isError ? (
+					<div className="mail-empty-state">
+						<h2>Couldn’t search your mail</h2>
+						<p>Please try again.</p>
+						<button
+							className="mail-primary-button"
+							onClick={() => void refetch()}
+						>
+							Retry
+						</button>
+					</div>
+				) : results.length ? (
+					results.map((email) => (
+						<EmailRow
+							key={email.id}
+							email={email}
+							checked={selection.has(email.id)}
+							onCheck={() =>
+								setSelection((previous) => {
+									const next = new Set(previous);
+									if (next.has(email.id)) next.delete(email.id);
+									else next.add(email.id);
+									return next;
+								})
+							}
+							onOpen={() => open(email)}
+							onStar={() => {
+								if (mailboxId)
+									update.mutate({
+										mailboxId,
+										id: email.id,
+										data: { starred: !email.starred },
+									});
+							}}
+							onRead={() => void actions.markRead([email], !email.read)}
+							onArchive={() => void move([email], Folders.ARCHIVE)}
+							onTrash={() =>
+								email.folder_id === Folders.TRASH
+									? setPermanent(email)
+									: void move([email], Folders.TRASH)
+							}
+							busy={actions.busy || update.isPending}
+							folderLabel={
+								email.folder_name ||
+								getFolderDisplayName(email.folder_id || Folders.INBOX)
+							}
+							highlight={(text) => highlightTerms(text, query)}
+						/>
+					))
+				) : (
+					<div className="mail-empty-state">
+						<div className="mail-empty-icon">
+							{starred ? (
+								<StarIcon size={38} />
+							) : (
+								<MagnifyingGlassIcon size={38} />
+							)}
 						</div>
-					) : (
-						<div>{results.map((email) => {
-							const isSelected = selectedEmailId === email.id;
-							const snippet = getSnippetText(email.snippet, 120);
-							const folderName = (email as Email & { folder_name?: string }).folder_name;
-							return (
-								<div key={email.id} role="button" tabIndex={0} onClick={() => handleRowClick(email)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleRowClick(email); } }} className={`group flex items-center gap-3 w-full text-left cursor-pointer transition-colors border-b border-kumo-line px-4 py-2.5 md:px-5 md:py-3 ${isPanelOpen ? "md:px-4 md:py-2.5" : ""} ${isSelected ? "bg-kumo-tint" : "hover:bg-kumo-tint"}`}>
-									<div className="w-2.5 shrink-0 flex justify-center">{!email.read && <div className="h-2 w-2 rounded-full bg-kumo-brand" />}</div>
-									<div className="min-w-0 flex-1">
-										<div className="flex items-center gap-2"><span className={`truncate text-sm ${!email.read ? "font-semibold text-kumo-default" : "text-kumo-strong"}`}>{highlightTerms(email.sender.split("@")[0], urlQuery)}</span>{folderName && <Badge variant="outline">{folderDisplayName(folderName)}</Badge>}<span className="text-sm text-kumo-subtle shrink-0 ml-auto">{formatListDate(email.date)}</span></div>
-										<div className={`truncate text-sm mt-0.5 ${!email.read ? "font-medium text-kumo-default" : "text-kumo-subtle"}`}>{highlightTerms(email.subject, urlQuery)}</div>
-										{snippet && <div className="truncate text-xs text-kumo-subtle mt-0.5">{highlightTerms(snippet, urlQuery)}</div>}
-									</div>
-								</div>
-							);
-						})}</div>
-					)}
-				</div>
-				{totalCount > SEARCH_PAGE_SIZE && <div className="flex justify-center py-3 border-t border-kumo-line shrink-0"><Pagination page={currentPage} setPage={setPage} perPage={SEARCH_PAGE_SIZE} totalCount={totalCount} /></div>}
-			</>
+						<h2>
+							{starred ? "Keep important mail close" : "No matching messages"}
+						</h2>
+						<p>
+							{starred
+								? "Click the star beside a message to find it here."
+								: query
+									? `Nothing matched “${query}”. Try another keyword or adjust your search options.`
+									: "Search by sender, subject, or a few words you remember."}
+						</p>
+						{!starred && (
+							<p className="mail-search-tip">
+								Try from:name · is:unread · has:attachment
+							</p>
+						)}
+					</div>
+				)}
+			</div>
+			<div className="mail-list-footer">
+				<span>
+					{total} {starred ? "starred messages" : "results"}
+				</span>
+				<span>Agentic Inbox</span>
+			</div>
+			<Dialog.Root
+				open={!!permanent}
+				onOpenChange={(open) => {
+					if (!open) setPermanent(null);
+				}}
+			>
+				<Dialog size="sm" className="p-6 mail-dialog">
+					<Dialog.Title className="text-lg mb-3">
+						Delete permanently?
+					</Dialog.Title>
+					<Dialog.Description className="text-sm text-kumo-subtle mb-6">
+						This message will be removed from Trash. This cannot be undone.
+					</Dialog.Description>
+					<div className="flex justify-end gap-2">
+						<button
+							className="mail-text-button"
+							onClick={() => setPermanent(null)}
+						>
+							Cancel
+						</button>
+						<button
+							className="mail-primary-button"
+							disabled={remove.isPending}
+							onClick={() => void deletePermanently()}
+						>
+							Delete permanently
+						</button>
+					</div>
+				</Dialog>
+			</Dialog.Root>
 		</MailboxSplitView>
 	);
 }

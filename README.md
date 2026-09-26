@@ -37,6 +37,8 @@ https://github.com/cloudflare/agentic-inbox/issues/4#issuecomment-4269118513
 
 ## Features
 
+- **Gmail-inspired workspace** — Rounded search and folder navigation, compact conversation rows, batch actions with Undo, and a floating composer with minimize/expand controls. Responsive layouts and motion respect reduced-motion preferences.
+- **Safe draft editing** — Autosave updates the same draft, Save and close keeps it in Drafts, and navigating to another mailbox saves pending changes first. Press `C` to compose, `/` or `⌘/Ctrl K` to search, `⌘/Ctrl S` to save a draft, and `⌘/Ctrl Enter` to send.
 - **Full email client** — Send and receive emails via Cloudflare Email Routing with a rich text composer, reply/forward threading, folder organization, search, and attachments
 - **Per-mailbox isolation** — Each mailbox runs in its own Durable Object with SQLite storage and R2 for attachments
 - **Built-in AI agent** — Side panel with 9 email tools for reading, searching, drafting, and sending

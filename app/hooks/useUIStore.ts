@@ -18,6 +18,7 @@ interface UIState {
 	// Side panel state
 	selectedEmailId: string | null;
 	isComposing: boolean;
+	composeFocusRequest: number;
 	_previousEmailId: string | null;
 	selectEmail: (id: string | null) => void;
 	startCompose: (options?: ComposeOptions) => void;
@@ -32,10 +33,18 @@ interface UIState {
 	openSidebar: () => void;
 	closeSidebar: () => void;
 	toggleSidebar: () => void;
+	isSidebarCollapsed: boolean;
+	toggleSidebarCollapsed: () => void;
 
 	// Agent panel
 	isAgentPanelOpen: boolean;
 	toggleAgentPanel: () => void;
+	assistantTab: "agent" | "mcp";
+	openAssistant: (tab: "agent" | "mcp") => void;
+	closeAssistant: () => void;
+	notice: { message: string; actionLabel?: string; action?: () => void } | null;
+	showNotice: (notice: NonNullable<UIState["notice"]>) => void;
+	clearNotice: () => void;
 
 	// Legacy dialog support (kept for non-split views)
 	isComposeModalOpen: boolean;
@@ -46,37 +55,54 @@ interface UIState {
 export const useUIStore = create<UIState>((set, get) => ({
 	selectedEmailId: null,
 	isComposing: false,
+	composeFocusRequest: 0,
 	_previousEmailId: null,
 	composeOptions: { mode: "new", originalEmail: null },
 	isComposeModalOpen: false,
 	isSidebarOpen: false,
-	isAgentPanelOpen: true,
+	isAgentPanelOpen: false,
+	isSidebarCollapsed: false,
+	assistantTab: "agent",
+	notice: null,
+	showNotice: (notice) => set({ notice }),
+	clearNotice: () => set({ notice: null }),
+	openAssistant: (tab) => set({ assistantTab: tab, isAgentPanelOpen: true }),
+	closeAssistant: () => set({ isAgentPanelOpen: false }),
+	toggleSidebarCollapsed: () =>
+		set({ isSidebarCollapsed: !get().isSidebarCollapsed }),
 
-	selectEmail: (id) => set({ selectedEmailId: id, isComposing: false }),
+	selectEmail: (id) => set({ selectedEmailId: id }),
 
 	startCompose: (options) =>
 		set((state) => {
-			const mode = options?.mode || "new";
-			const isReplyOrForward = mode === "reply" || mode === "reply-all" || mode === "forward";
+			if (state.isComposing)
+				return {
+					composeFocusRequest: state.composeFocusRequest + 1,
+					notice: options
+						? {
+								message:
+									"Save or discard your current draft before starting another message.",
+							}
+						: state.notice,
+				};
 			return {
 				isComposing: true,
 				_previousEmailId: state.selectedEmailId,
 				// Keep selectedEmailId when replying/forwarding so the thread stays visible
-				selectedEmailId: isReplyOrForward ? state.selectedEmailId : null,
+				selectedEmailId: state.selectedEmailId,
 				composeOptions: options || { mode: "new", originalEmail: null },
 				isSidebarOpen: false,
 			};
 		}),
 
-	closePanel: () => set({ selectedEmailId: null, isComposing: false, _previousEmailId: null, composeOptions: { mode: "new" as const, originalEmail: null } }),
+	closePanel: () => set({ selectedEmailId: null }),
 
 	closeCompose: () =>
-		set((state) => ({
+		set({
 			isComposing: false,
-			selectedEmailId: state._previousEmailId,
 			_previousEmailId: null,
 			composeOptions: { mode: "new" as const, originalEmail: null },
-		})),
+		}),
 
 	openSidebar: () => set({ isSidebarOpen: true }),
 	closeSidebar: () => set({ isSidebarOpen: false }),

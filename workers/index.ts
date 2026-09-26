@@ -249,7 +249,15 @@ app.post("/api/v1/mailboxes/:mailboxId/drafts", async (c: AppContext) => {
 	const mailboxId = c.req.param("mailboxId")!;
 	const { to, cc, bcc, subject, body, in_reply_to, thread_id, draft_id } = DraftBody.parse(await c.req.json());
 	const stub = c.var.mailboxStub;
-	if (draft_id) await stub.deleteEmail(draft_id); // not atomic — create-then-delete would be safer
+	if (draft_id) {
+		const draft = await stub.updateDraft(draft_id, {
+			subject: subject || "", recipient: (to || "").toLowerCase(),
+			cc: cc?.toLowerCase() || null, bcc: bcc?.toLowerCase() || null, body,
+			in_reply_to: in_reply_to || null, thread_id: thread_id || in_reply_to || draft_id,
+		});
+		if (!draft) return c.json({ error: "Draft not found" }, 404);
+		return c.json({ id: draft.id, status: "draft", subject: draft.subject, recipient: draft.recipient, date: draft.date });
+	}
 	const messageId = crypto.randomUUID();
 	const now = new Date().toISOString();
 	await stub.createEmail(Folders.DRAFT, {
