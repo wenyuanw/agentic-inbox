@@ -1,178 +1,158 @@
 <div align="center">
   <h1>Agentic Inbox</h1>
-  <p><em>A self-hosted email client with an AI agent, running entirely on Cloudflare Workers</em></p>
+  <p><em>运行在 Cloudflare Workers 上的自托管邮件客户端，内置 AI 邮件助手</em></p>
 </div>
 
-Agentic Inbox lets you send, receive, and manage emails through a modern web interface -- all powered by your own Cloudflare account. Incoming emails arrive via [Cloudflare Email Routing](https://developers.cloudflare.com/email-routing/), each mailbox is isolated in its own [Durable Object](https://developers.cloudflare.com/durable-objects/) with a SQLite database, and attachments are stored in [R2](https://developers.cloudflare.com/r2/).
+Agentic Inbox 是一款采用 Gmail 风格布局的邮件客户端，可以通过网页收发和管理邮件，并为每个邮箱提供 AI 助手。收件使用 [Cloudflare Email Routing](https://developers.cloudflare.com/email-routing/) 将邮件交给 Worker；配置完成的域名通过 Resend 发送邮件。每个邮箱由独立的 [Durable Object](https://developers.cloudflare.com/durable-objects/) 和 SQLite 数据库管理，附件保存在 [R2](https://developers.cloudflare.com/r2/)。
 
-An **AI-powered Email Agent** can read your inbox, search conversations, and draft replies -- built with the [Cloudflare Agents SDK](https://developers.cloudflare.com/agents/) and [Workers AI](https://developers.cloudflare.com/workers-ai/).
+![Gmail 风格的 Agentic Inbox 邮件界面](./demo_app.png)
 
-![Agentic Inbox screenshot](./demo_app.png)
+*界面采用 Gmail 风格；邮件由 Cloudflare Email Routing 收取，并通过 Resend 发出。*
 
+项目介绍：[Email for Agents：使用 Cloudflare Email Service、Agents SDK、MCP 和 Wrangler CLI](https://blog.cloudflare.com/email-for-agents/)
 
-Read the blog post to learn more about Cloudflare Email Service and how to use it with the Agents SDK, MCP, and from the Wrangler CLI: [Email for Agents](https://blog.cloudflare.com/email-for-agents/).
+## 功能
 
-## How to setup
+- **邮件收发与整理**：通过 Cloudflare Email Routing 收件、通过 Resend 发件；支持富文本写信、回复、转发、会话、附件、搜索、星标、归档、垃圾邮件、已删除邮件、自定义文件夹和草稿。
+- **草稿保护**：自动保存到当前草稿；“保存并关闭”会将草稿留在草稿箱；切换邮箱前会先保存未完成的内容。
+- **快捷键**：按 `C` 写邮件，按 `/` 或 `⌘/Ctrl + K` 搜索，按 `⌘/Ctrl + S` 保存草稿，按 `⌘/Ctrl + Enter` 发送。
+- **多域名配置向导**：连接 Cloudflare 和 Resend，自动配置 Email Routing catch-all 收件规则、Resend 发信域名和 DNS 记录；可分别管理多个域名及其发信凭证。
+- **未配置邮件**：投递到尚未创建邮箱的地址、且已由 Cloudflare 路由到 Worker 的邮件，会保存在“未配置邮件”页面中，可查看正文、下载附件或删除。
+- **AI 邮件助手**：可读取邮件、搜索邮件和会话、生成新邮件或回复草稿。新邮件到达后会自动生成回复草稿；发送前仍需在界面中检查并确认。
+- **可选 AI 服务商**：支持 Cloudflare Workers AI、OpenAI 兼容接口、Anthropic 和 Google Gemini。默认 Workers AI 模型为 `@cf/zai-org/glm-4.7-flash`；接入外部服务商需要自行提供 API Key。
+- **中英文与主题**：支持简体中文、英文，以及浅色、深色和跟随系统外观设置。
+- **PWA 安装**：可将应用安装到桌面或手机主屏幕；离线时显示重试页面，不会缓存邮件内容或登录凭证。
+- **MCP 接口**：提供 `/mcp` 邮件工具，可供兼容 MCP 的 AI 客户端调用。
 
-**Important**: Clicking the 'Deploy to Cloudflare' button is only one part of the setup. You must follow the **After deploying** steps as well. For a full step-by-step guide with screenshots, refer to this comment: 
-https://github.com/cloudflare/agentic-inbox/issues/4#issuecomment-4269118513
+## 技术架构
 
-### To set up
+- **前端**：React 19、React Router v7、Tailwind CSS、Zustand、TipTap、`@cloudflare/kumo`
+- **后端**：Hono、Cloudflare Workers、Durable Objects（SQLite）、R2、Cloudflare Email Routing（收件）、Resend（发件）
+- **AI**：[Cloudflare Agents SDK](https://developers.cloudflare.com/agents/)、[Workers AI](https://developers.cloudflare.com/workers-ai/)、AI SDK；可切换到 OpenAI 兼容服务、Anthropic 或 Gemini
+- **认证**：部署环境使用 Cloudflare Access；本地开发跳过 Access 校验
 
-1. Deploy to Cloudflare. The deploy flow will automatically provision R2, Durable Objects, and Workers AI. You'll be prompted for **DOMAINS**, which is the domain (yourdomain.com) you want to receive emails for (email@yourdomain.com).
+```text
+┌────────────────┐     ┌─────────────────────┐     ┌─────────────────┐
+│ 浏览器         │────>│ Hono Worker         │────>│ MailboxDO       │
+│ React 邮件界面 │     │ 页面与 API          │     │ SQLite + R2     │
+│ AI 助手面板    │     │                     │     └─────────────────┘
+└───────┬────────┘     │ /agents/*           │────>┌─────────────────┐
+        │ WebSocket    │                     │     │ EmailAgent DO   │
+        └─────────────>│                     │     │ AIChatAgent     │
+                       └─────────────────────┘     └────────┬────────┘
+                                                            │
+                                                   Workers AI 或外部模型
 
-     [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/agentic-inbox)
+外部发件人 ──> Cloudflare Email Routing ──> Worker ──> MailboxDO / 未配置邮件收件箱
+邮件客户端 / MCP ──> Worker ──> Resend ──> 外部收件人
+```
 
-2. **Configure Cloudflare Access** -- Enable [one-click Cloudflare Access](https://developers.cloudflare.com/changelog/post/2025-10-03-one-click-access-for-workers/) on your Worker under Settings > Domains & Routes. The modal will show your `POLICY_AUD` and `TEAM_DOMAIN` values. `TEAM_DOMAIN` can be either your Access team URL or the full `.../cdn-cgi/access/certs` URL. **You must set these as secrets for your Worker.**
-3. **Set up Email Routing** -- In the Cloudflare dashboard, go to your domain > Email Routing and create a catch-all rule that forwards to this Worker
-4. **Enable Email Service** -- The worker needs the `send_email` binding to send outbound emails. See [Email Service docs](https://developers.cloudflare.com/email-routing/email-workers/send-email-workers/)
-5. **Create a mailbox** -- Visit your deployed app and create a mailbox for any address on your domain (e.g. `hello@example.com`)
+## 开始使用
 
-### Troubleshooting Access
+### 前置条件
 
-1. If you see `Invalid or expired Access token`, that usually means `POLICY_AUD` or `TEAM_DOMAIN` secrets are incorrect.
-   * Resolution: [turn Access off and back on for the Worker to get the Access modal again](https://developers.cloudflare.com/changelog/post/2025-10-03-one-click-access-for-workers/), then reset your Worker secrets to the latest `POLICY_AUD` and `TEAM_DOMAIN` values shown there.
-2. If you see `Cloudflare Access must be configured in production`, this application is intentionally enforcing Cloudflare Access so your inbox is not exposed to anyone on the internet.
-   * Resolution: enable Access using [one-click Cloudflare Access for Workers](https://developers.cloudflare.com/changelog/post/2025-10-03-one-click-access-for-workers/), then set the `POLICY_AUD` and `TEAM_DOMAIN` Worker secrets from the modal values.
+- Cloudflare 账户，以及托管在 Cloudflare 上的邮件域名
+- 已启用 Cloudflare Email Routing，用于收取邮件
+- Resend 账户和 API Key；配置向导会添加并验证发信域名
+- 部署或共享环境需要配置 Cloudflare Access
+- 使用域名向导时，需要 Cloudflare API Token 和 Resend API Key
 
-## Features
-
-- **Gmail-inspired workspace** — Rounded search and folder navigation, compact conversation rows, batch actions with Undo, and a floating composer with minimize/expand controls. Responsive layouts and motion respect reduced-motion preferences.
-- **Safe draft editing** — Autosave updates the same draft, Save and close keeps it in Drafts, and navigating to another mailbox saves pending changes first. Press `C` to compose, `/` or `⌘/Ctrl K` to search, `⌘/Ctrl S` to save a draft, and `⌘/Ctrl Enter` to send.
-- **Full email client** — Send and receive emails via Cloudflare Email Routing with a rich text composer, reply/forward threading, folder organization, search, and attachments
-- **Per-mailbox isolation** — Each mailbox runs in its own Durable Object with SQLite storage and R2 for attachments
-- **Built-in AI agent** — Side panel with 9 email tools for reading, searching, drafting, and sending
-- **Auto-draft on new email** — Agent automatically reads inbound emails and generates draft replies, always requiring explicit confirmation before sending
-- **AI provider settings** — Per-mailbox Workers AI, OpenAI-compatible APIs (custom Base URL), Anthropic and Google Gemini; configurable model IDs, encrypted write-only API keys, and a tool-calling connection test.
-- **Configurable and persistent** — Custom system prompts per mailbox, persistent chat history, streaming markdown responses, and tool call visibility
-
-## Stack
-
-- **Frontend:** React 19, React Router v7, Tailwind CSS, Zustand, TipTap, `@cloudflare/kumo`
-- **Backend:** Hono, Cloudflare Workers, Durable Objects (SQLite), R2, Email Routing
-- **AI Agent:** Cloudflare Agents SDK (`AIChatAgent`), AI SDK v6, Workers AI (`@cf/moonshotai/kimi-k2.5`), `react-markdown` + `remark-gfm`
-- **Auth:** Cloudflare Access JWT validation (required outside local development)
-
-## Getting Started
+### 本地开发
 
 ```bash
 npm install
+cp .dev.vars.example .dev.vars
 npm run dev
 ```
 
-### Configuration
-
-1. Set your domain in `wrangler.jsonc`
-2. Create an R2 bucket named `agentic-inbox`: `wrangler r2 bucket create agentic-inbox`
-
-### AI provider configuration
-
-The default remains Cloudflare Workers AI with Kimi K2.5 for the assistant and
-Llama models for content checks. Open **Settings → AI connection** to choose a
-provider and a model that supports tool calling. OpenAI-compatible endpoints use
-Chat Completions; provide the API base path (for example, `https://api.openai.com/v1`),
-without `/chat/completions`. Anthropic defaults to `/v1`, Gemini to `/v1beta`.
-
-Before saving an external API key, generate a stable encryption key:
+本地开发会跳过 Cloudflare Access 校验。需要添加域名或保存外部 AI 服务商的 API Key 时，请先在 `.dev.vars` 中配置 `AI_CONFIG_ENCRYPTION_KEY`。这个密钥必须是 Base64 编码的 32 字节密钥：
 
 ```bash
 openssl rand -base64 32
-npx wrangler secret put AI_CONFIG_ENCRYPTION_KEY
 ```
 
-Paste the generated value into the secret prompt. For local development, set the
-same variable in the ignored `.dev.vars` file. Do not commit either key. Keep a
-secure backup: rotating the encryption key requires re-entering each saved API key.
-Keys are AES-GCM encrypted in separate per-mailbox R2 configuration objects, bound
-to the mailbox ID, and are never included in configuration responses or mailbox
-settings. Leaving the API Key field empty preserves it only for the same provider
-and Base URL; switching endpoints requires a new key. Selecting Workers AI and
-saving removes the external key.
+将命令生成的值填入 `.dev.vars`。不要将 `.dev.vars` 或密钥提交到版本库。
 
-**Test connection** uses only a fixed prompt and a harmless tool schema, without
-reading or sending mail; it may incur provider charges. It checks tool support
-and does not save configuration. Click **Save AI settings** to apply changes to
-new requests. With an external provider, assistant chat, automatic drafts and
-content checks all use that provider and model; email content is sent there when
-these features run. Settings remain behind the existing shared Cloudflare Access
-policy, which allows authorized teammates to manage all mailboxes.
+### 部署到 Cloudflare
 
-Run the isolated configuration and mocked-provider checks with `npm run test:ai`.
-These tests make no real model requests or send emails.
+1. 登录 Wrangler，并根据自己的部署修改 `wrangler.jsonc` 中的 Worker 名称、R2 bucket 名称和 `DOMAINS` 环境变量。配置中的 `agentic-inbox` R2 bucket 需要预先创建；如果还没有，可以运行：
 
-### Deploy
+   ```bash
+   npx wrangler r2 bucket create agentic-inbox
+   ```
+
+2. 部署应用。配置文件包含 Durable Objects、Workers AI、R2 和邮件发送 binding；通过域名向导配置的域名会使用 Resend 发信：
+
+   ```bash
+   npm run deploy
+   ```
+
+3. 在 Cloudflare 控制台为 Worker 启用 [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/policies/access/)。根据 Access 设置页面提供的值，为 Worker 配置 `POLICY_AUD` 和 `TEAM_DOMAIN` 两个 secret：
+
+   ```bash
+   npx wrangler secret put POLICY_AUD
+   npx wrangler secret put TEAM_DOMAIN
+   ```
+
+   `TEAM_DOMAIN` 可以是 Access 团队域名，也可以是完整的 `.../cdn-cgi/access/certs` 地址。生产环境没有这两个值时，应用会拒绝请求。
+
+4. 为 Worker 配置凭证加密密钥。域名向导和外部 AI 服务商的 API Key 都依赖这个密钥：
+
+   ```bash
+   openssl rand -base64 32
+   npx wrangler secret put AI_CONFIG_ENCRYPTION_KEY
+   ```
+
+   将生成的密钥粘贴到 Wrangler 提示中。请妥善保存并保持该密钥稳定；更换密钥后，之前保存的加密凭证将无法读取，需要重新录入。此密钥只保存在 Worker secret 中，不要提交到代码库。
+
+5. 打开已部署的应用，进入域名配置向导。验证 Cloudflare Token 和 Resend API Key 后，向导会启用 Email Routing、创建指向该 Worker 的 catch-all 收件规则、添加 Resend 发信域名并配置 DNS。只有邮件实际路由到这个 Worker 后，应用才能接收邮件；域名验证完成后，发件会通过 Resend 发送。
+
+## 配置邮件域名
+
+部署应用后，在首页或设置页打开“管理域名”，选择“添加域名”。向导需要：
+
+- **Cloudflare API Token**：仅授权正在配置的域名，并授予 Zone Read、DNS Edit、Zone Settings Edit、Email Routing Rules Edit 权限。向导不会保存此 Token。
+- **Resend API Key**：选择 Resend 的 Full Access 权限。密钥会使用 `AI_CONFIG_ENCRYPTION_KEY` 加密后保存。
+- **域名**：该域名需要托管在 Cloudflare 上。
+
+向导会启用 Email Routing、创建指向 Worker 的 catch-all 规则、在 Resend 中添加发信域名、写入 DNS 记录，并验证 SPF / DKIM。配置完成后，可创建多个邮箱地址。每个域名可以使用独立的 Cloudflare Token 和 Resend 账户；重新配置域名不会删除已有邮箱或邮件。
+
+进入“未配置邮件”可以查看已经被路由到 Worker、但收件地址还没有在应用中创建邮箱的邮件。若 Cloudflare 中没有将邮件转发到 Worker，应用无法接收或显示这些邮件。
+
+## 配置 AI 助手
+
+在邮箱设置的“AI 连接”中选择服务商、模型，并填写服务商要求的 API Key。Workers AI 使用 Cloudflare binding，不需要填写 API Key；其他服务商需要提供 Base URL（如适用）和 API Key。API Key 在服务端加密，浏览器不会收到密钥明文。
+
+AI 助手、自动草稿和内容检查会使用该邮箱选定的服务商和模型。使用外部服务商时，相关邮件内容会发送给该服务商处理。连接测试会发送固定测试提示，不会读取或发送真实邮件；测试和实际调用可能产生服务商费用。保存设置后才会应用到后续请求。
+
+## 数据与访问边界
+
+- 每个邮箱的数据保存在独立 Durable Object 的 SQLite 数据库中；邮件附件保存在 R2。
+- 生产环境必须启用 Cloudflare Access，并配置 `POLICY_AUD` 与 `TEAM_DOMAIN`。
+- 当前授权边界是同一套 Cloudflare Access policy：任何通过该策略的用户都可以访问应用中的所有邮箱。应用没有按邮箱单独授权。
+- `/mcp` 使用相同的 Access 边界。连接到 MCP 的 AI 客户端可以通过 `mailboxId` 操作对应邮箱，因此只应授权可信用户和客户端访问。
+- PWA 离线页面不会缓存邮件、凭证、API 响应或已认证页面，也不会离线排队发送邮件。
+
+## PWA 安装
+
+在配置页、首页、邮箱列表或邮箱设置中点击“安装应用”。符合安装条件时，Chrome 和 Edge 会显示原生安装提示。iPhone 或 iPad 用户可以在 Safari 中打开应用，选择“分享 → 添加到主屏幕”。正式部署需要 HTTPS；本地开发也可以使用 localhost 验证安装体验。
+
+离线时应用只显示中英文重试页面；收发邮件、AI 功能和配置操作仍需要网络。Service Worker 更新后会提示刷新，刷新前请先保存未完成的邮件编辑。
+
+## 开发命令
 
 ```bash
-npm run deploy
+npm run dev          # 启动本地开发服务器
+npm run typecheck    # 生成 Cloudflare 类型并运行 TypeScript 检查
+npm run build        # 构建应用
+npm run deploy       # 构建并部署 Worker
+npm run test:ai      # AI 配置与模拟服务商测试
+npm run test:domains # 域名配置与邮件路由测试
+npm run test:pwa     # PWA 缓存与离线页面测试
 ```
 
-## Prerequisites
+这些自动化测试使用模拟服务，不会调用真实模型、修改外部 DNS 或发送真实邮件。
 
-- Cloudflare account with a domain
-- [Email Routing](https://developers.cloudflare.com/email-routing/) enabled for receiving
-- [Email Service](https://developers.cloudflare.com/email-service/) enabled for sending
-- [Workers AI](https://developers.cloudflare.com/workers-ai/) enabled (for the agent)
-- [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/policies/access/) configured for deployed/shared environments (required in production)
+## 许可证
 
-Any user who passes the shared Cloudflare Access policy can access all mailboxes in this app by design. This includes the MCP server at `/mcp` -- external AI tools (Claude Code, Cursor, etc.) connected via MCP can operate on any mailbox by passing a `mailboxId` parameter. There is no per-mailbox authorization; the Cloudflare Access policy is the single trust boundary.
-
-## Architecture
-
-```
-┌──────────────┐     ┌──────────────────┐     ┌─────────────────┐
-│   Browser    │────>│  Hono Worker     │────>│  MailboxDO      │
-│  React SPA   │     │  (API + SSR)     │     │  (SQLite + R2)  │
-│  Agent Panel │     │                  │     └─────────────────┘
-└──────┬───────┘     │  /agents/* ──────┼────>┌─────────────────┐
-       │             │                  │     │  EmailAgent DO  │
-       │ WebSocket   │                  │     │  (AIChatAgent)  │
-       └─────────────┤                  │     │  9 email tools  │
-                     │                  │────>│  Workers AI     │
-                     └──────────────────┘     └─────────────────┘
-```
-
-## License
-
-Apache 2.0 -- see [LICENSE](LICENSE).
-
-## Install as a PWA
-
-Use **Install app** on the setup page, mailbox list, or mailbox settings. Chrome and
-Edge can show a native installation prompt when the site is eligible. On iPhone
-or iPad, open the site in Safari and choose **Share → Add to Home Screen**. A
-production deployment needs HTTPS; localhost also supports development testing.
-
-The service worker provides a bilingual offline retry page. Reading, sending,
-AI features, and configuration still require a connection. It does not cache
-mail content, credentials, API responses, or authenticated pages, and does not
-queue email sends. Installation does not enable notifications or background mail sync.
-
-Service worker updates show a refresh prompt; save open edits before accepting.
-Only the accepting tab reloads automatically. When changing `public/offline.html`,
-also increment the cache version in `public/sw.js` so installed clients receive
-an updated offline page. Verify cache and routing behavior with `npm run test:pwa`.
-
-## Multiple mail domains
-
-Open **Manage domains** from the mailbox list or mailbox settings. Use **Add domain**
-to configure another Cloudflare domain and its Resend key. Each domain can use a
-different Cloudflare user token and Resend account. Tokens must cover that domain;
-Resend setup requires Full Access. **Reconfigure** updates one domain after DNS and
-sending verification succeed. Existing mailboxes, mail, and other domain settings
-are preserved. The wizard changes live DNS and catch-all routing only when started.
-
-Each domain is stored independently under `config/domains/` in R2. New Resend keys
-are encrypted with the server's `AI_CONFIG_ENCRYPTION_KEY` (the same 32-byte master
-key used for AI credentials). Set this secret before configuring domains, and keep
-it stable. Existing `config/setup.json` single-domain configurations remain readable;
-reconfiguring a legacy domain writes its encrypted replacement without deleting mail.
-No plaintext credentials or encrypted key payloads are returned in domain status.
-
-Mailbox creation offers the configured domains. Incoming messages are assigned using
-Cloudflare's envelope recipient, including CC/BCC deliveries. Sending chooses the
-credentials for the sender's domain. Domains manually listed in `DOMAINS` continue
-to work; each needs its own routing and sending setup. Local configuration and mail
-storage are separate from production; real incoming mail still needs a deployed Worker.
-
-Run `npm run test:domains` for mocked routing, credential, compatibility and multi-domain
-mailbox checks. These tests do not modify external DNS or send actual email.
+Apache 2.0，详见 [LICENSE](LICENSE)。
