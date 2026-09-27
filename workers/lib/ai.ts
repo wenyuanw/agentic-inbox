@@ -9,6 +9,9 @@
  * - verifyDraft: reviews draft email bodies and removes agent/system artifacts.
  */
 
+import { generateText } from "ai";
+import { getAIModel, safeAIError } from "./ai-provider";
+import type { Env } from "../types";
 import { escapeHtml, stripHtmlToText, textToHtml } from "./email-helpers";
 
 // ── Prompt Injection Scanner ───────────────────────────────────────
@@ -21,36 +24,42 @@ Return ONLY "NO" if it is a normal email (even if angry, confused, or containing
 
 Respond with exactly one word: YES or NO.`;
 
-export async function isPromptInjection(ai: Ai, bodyHtml: string | null | undefined): Promise<boolean> {
+export async function isPromptInjection(
+	env: Env,
+	mailboxId: string,
+	bodyHtml: string | null | undefined,
+): Promise<boolean> {
 	if (!bodyHtml) return false;
-	
+
 	const plainText = stripHtmlToText(bodyHtml).trim();
 	if (plainText.length < 10) return false;
 
 	try {
-		const response = (await ai.run(
-			// @ts-expect-error — model string not in generated union
-			"@cf/meta/llama-3.1-8b-instruct-fast",
-			{
-				messages: [
-					{ role: "system", content: INJECTION_PROMPT },
-					{ role: "user", content: plainText },
-				],
-				max_tokens: 10,
-				temperature: 0,
-			},
-		)) as { response?: string };
+		const response = await generateText({
+			model: await getAIModel(env, mailboxId, "scanner"),
+			system: INJECTION_PROMPT,
+			prompt: plainText,
+			maxOutputTokens: 512,
+			maxRetries: 0,
+			abortSignal: AbortSignal.timeout(30_000),
+		});
+		const result = response.text.trim().toUpperCase();
+		// Ambiguous answers are not permission to auto-draft.
+		if (result !== "YES" && result !== "NO") return true;
 
-		const result = (response?.response || "NO").trim().toUpperCase();
-		
 		if (result.includes("YES")) {
-			console.warn("Prompt injection detected in incoming email, blocking auto-draft");
+			console.warn(
+				"Prompt injection detected in incoming email, blocking auto-draft",
+			);
 			return true;
 		}
-		
+
 		return false;
 	} catch (e) {
-		console.error("Prompt injection scanner failed, skipping auto-draft:", (e as Error).message);
+		console.error(
+			"Prompt injection scanner failed, skipping auto-draft:",
+			safeAIError(e),
+		);
 		// Fail closed: treat scanner failures as potential injection to avoid
 		// auto-drafting replies to emails we couldn't verify.
 		// The email is still stored in the inbox — only auto-draft is skipped.
@@ -117,9 +126,13 @@ function splitQuotedBlock(html: string): { reply: string; quoted: string } {
 
 /**
  * Verify and clean a draft email body using AI.
- * Falls back to returning the original body if the AI call fails.
+ * Returns an empty string on failure so callers reject unverified content.
  */
-export async function verifyDraft(ai: Ai, body: string): Promise<string> {
+export async function verifyDraft(
+	env: Env,
+	mailboxId: string,
+	body: string,
+): Promise<string> {
 	if (!body || !body.trim()) return body;
 
 	// Separate the quoted reply block so the AI only reviews the user's text
@@ -135,19 +148,15 @@ export async function verifyDraft(ai: Ai, body: string): Promise<string> {
 	if (replyText.trim().length < 20) return body;
 
 	try {
-		const response = (await ai.run(
-			"@cf/meta/llama-4-scout-17b-16e-instruct",
-			{
-				messages: [
-					{ role: "system", content: VERIFIER_PROMPT },
-					{ role: "user", content: replyText },
-				],
-				max_tokens: 4096,
-				temperature: 0,
-			},
-		)) as { response?: string };
-
-		const cleaned = response?.response ?? null;
+		const response = await generateText({
+			model: await getAIModel(env, mailboxId, "verifier"),
+			system: VERIFIER_PROMPT,
+			prompt: replyText,
+			maxOutputTokens: 4096,
+			maxRetries: 0,
+			abortSignal: AbortSignal.timeout(45_000),
+		});
+		const cleaned = response.text;
 
 		if (!cleaned || !cleaned.trim()) {
 			// AI returned empty — fall back to original
@@ -157,7 +166,9 @@ export async function verifyDraft(ai: Ai, body: string): Promise<string> {
 		const cleanedTrimmed = cleaned.trim();
 
 		// If the AI returned something substantially similar, keep original formatting
-		if (normalizeWhitespace(cleanedTrimmed) === normalizeWhitespace(replyText)) {
+		if (
+			normalizeWhitespace(cleanedTrimmed) === normalizeWhitespace(replyText)
+		) {
 			return body;
 		}
 
@@ -179,11 +190,12 @@ export async function verifyDraft(ai: Ai, body: string): Promise<string> {
 		}
 
 		// Plain text: reattach quoted block if any
-		return quotedBlock
-			? `${cleanedTrimmed}\n\n${quotedBlock}`
-			: cleanedTrimmed;
+		return quotedBlock ? `${cleanedTrimmed}\n\n${quotedBlock}` : cleanedTrimmed;
 	} catch (e) {
-				console.error("AI failed — returns empty body, callers may save blank draft:", (e as Error).message);
+		console.error(
+			"Draft verification failed; refusing unverified content:",
+			safeAIError(e),
+		);
 		return "";
 	}
 }

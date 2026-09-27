@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 //     https://opensource.org/licenses/Apache-2.0
 
+import type { AIConfigInput, AIConfigView } from "shared/ai-config";
 import type { Email, Folder, Mailbox } from "~/types";
 
 const REQUEST_TIMEOUT_MS = 30_000;
@@ -145,6 +146,11 @@ const api = {
 		put<Mailbox>(`/api/v1/mailboxes/${mailboxId}`, { settings }),
 	deleteMailbox: (mailboxId: string) =>
 		del<void>(`/api/v1/mailboxes/${mailboxId}`),
+
+	// Per-mailbox AI configuration (API keys are write-only).
+	getAIConfig: (mailboxId: string) => get<AIConfigView>(`/api/v1/mailboxes/${encodeURIComponent(mailboxId)}/ai-config`),
+	saveAIConfig: (mailboxId: string, input: AIConfigInput) => put<AIConfigView>(`/api/v1/mailboxes/${encodeURIComponent(mailboxId)}/ai-config`, input),
+	testAIConfig: (mailboxId: string, input: AIConfigInput) => post<{ success: boolean; durationMs: number }>(`/api/v1/mailboxes/${encodeURIComponent(mailboxId)}/ai-config/test`, input),
 
 	// Emails
 	listEmails: (mailboxId: string, params: Record<string, string>, opts?: { signal?: AbortSignal }) =>

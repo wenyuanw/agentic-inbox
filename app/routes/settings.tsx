@@ -22,6 +22,7 @@ import { useParams } from "react-router";
 import { useMailbox, useUpdateMailbox } from "~/queries/mailboxes";
 import { useTheme } from "~/components/ThemeProvider";
 import type { ThemePreference } from "~/lib/theme";
+import AISettings from "~/components/AISettings";
 import LanguageSelect from "~/components/LanguageSelect";
 
 const themeOptions = [
@@ -178,6 +179,8 @@ export default function SettingsRoute() {
 						/>
 					</div>
 				</div>
+
+				{mailboxId && <AISettings key={mailboxId} mailboxId={mailboxId} />}
 
 				{/* Agent System Prompt */}
 				<div className="rounded-lg border border-kumo-line bg-kumo-base p-5">

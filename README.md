@@ -43,6 +43,7 @@ https://github.com/cloudflare/agentic-inbox/issues/4#issuecomment-4269118513
 - **Per-mailbox isolation** — Each mailbox runs in its own Durable Object with SQLite storage and R2 for attachments
 - **Built-in AI agent** — Side panel with 9 email tools for reading, searching, drafting, and sending
 - **Auto-draft on new email** — Agent automatically reads inbound emails and generates draft replies, always requiring explicit confirmation before sending
+- **AI provider settings** — Per-mailbox Workers AI, OpenAI-compatible APIs (custom Base URL), Anthropic and Google Gemini; configurable model IDs, encrypted write-only API keys, and a tool-calling connection test.
 - **Configurable and persistent** — Custom system prompts per mailbox, persistent chat history, streaming markdown responses, and tool call visibility
 
 ## Stack
@@ -63,6 +64,41 @@ npm run dev
 
 1. Set your domain in `wrangler.jsonc`
 2. Create an R2 bucket named `agentic-inbox`: `wrangler r2 bucket create agentic-inbox`
+
+### AI provider configuration
+
+The default remains Cloudflare Workers AI with Kimi K2.5 for the assistant and
+Llama models for content checks. Open **Settings → AI connection** to choose a
+provider and a model that supports tool calling. OpenAI-compatible endpoints use
+Chat Completions; provide the API base path (for example, `https://api.openai.com/v1`),
+without `/chat/completions`. Anthropic defaults to `/v1`, Gemini to `/v1beta`.
+
+Before saving an external API key, generate a stable encryption key:
+
+```bash
+openssl rand -base64 32
+npx wrangler secret put AI_CONFIG_ENCRYPTION_KEY
+```
+
+Paste the generated value into the secret prompt. For local development, set the
+same variable in the ignored `.dev.vars` file. Do not commit either key. Keep a
+secure backup: rotating the encryption key requires re-entering each saved API key.
+Keys are AES-GCM encrypted in separate per-mailbox R2 configuration objects, bound
+to the mailbox ID, and are never included in configuration responses or mailbox
+settings. Leaving the API Key field empty preserves it only for the same provider
+and Base URL; switching endpoints requires a new key. Selecting Workers AI and
+saving removes the external key.
+
+**Test connection** uses only a fixed prompt and a harmless tool schema, without
+reading or sending mail; it may incur provider charges. It checks tool support
+and does not save configuration. Click **Save AI settings** to apply changes to
+new requests. With an external provider, assistant chat, automatic drafts and
+content checks all use that provider and model; email content is sent there when
+these features run. Settings remain behind the existing shared Cloudflare Access
+policy, which allows authorized teammates to manage all mailboxes.
+
+Run the isolated configuration and mocked-provider checks with `npm run test:ai`.
+These tests make no real model requests or send emails.
 
 ### Deploy
 

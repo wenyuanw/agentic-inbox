@@ -444,4 +444,55 @@ export const zh = {
 	"Catch-all points to Worker: {worker}": "Catch-all 已指向 Worker: {worker}",
 	"Resend domain: {domain}": "Resend 域名: {domain}",
 	"{count} DNS records added": "已添加 {count} 条 DNS 记录",
+	"AI connection": "AI 接口",
+	"Choose the provider for this mailbox's assistant, automatic drafts and content checks. Use a model that supports tools.":
+		"为此邮箱的助手、自动起草和内容检查选择 AI 服务。请使用支持工具调用的模型。",
+	"Could not load AI settings.": "无法加载 AI 设置。",
+	"AI provider": "AI 服务商",
+	"OpenAI / compatible API": "OpenAI / 兼容接口",
+	"Model ID": "模型 ID",
+	"Enter the model ID from your provider": "输入服务商提供的模型 ID",
+	"Use the API base path, without /chat/completions or /messages. OpenAI-compatible services such as DeepSeek can use their own HTTPS endpoint.":
+		"填写 API 基础路径，不包含 /chat/completions 或 /messages。DeepSeek 等 OpenAI 兼容服务可填写自己的 HTTPS 地址。",
+	"Key saved — leave empty to keep it": "密钥已保存，留空可保留",
+	"Enter your API key": "输入 API Key",
+	"API keys are encrypted on the server and never returned to the browser. Changing the provider or Base URL requires a new key.":
+		"API Key 在服务器加密存储，不会返回浏览器。更换服务商或 Base URL 时需重新填写密钥。",
+	"Email content will be sent to the selected provider when AI features are used.":
+		"使用 AI 功能时，邮件内容将发送给所选服务商。",
+	"Workers AI uses your Cloudflare binding; no API key is needed. Content checks keep using the built-in Llama models.":
+		"Workers AI 使用 Cloudflare 绑定，无需 API Key。内容检查继续使用内置 Llama 模型。",
+	"Test connection": "测试连接",
+	"Save AI settings": "保存 AI 设置",
+	"Use default Workers AI": "使用默认 Workers AI",
+	"Testing sends only a fixed test prompt and may incur a small API charge. Save separately to apply changes.":
+		"测试仅发送固定提示词，可能产生少量 API 费用。测试后需单独保存才能应用更改。",
+	"AI settings saved. New requests will use this configuration.":
+		"AI 设置已保存，后续请求将使用此配置。",
+	"Connection and tool-calling test passed ({duration} ms).":
+		"连接和工具调用测试通过（{duration} 毫秒）。",
+	"Use a public HTTPS Base URL without credentials or query parameters.":
+		"请填写公开的 HTTPS Base URL，不能包含登录信息或查询参数。",
+	"Configure AI_CONFIG_ENCRYPTION_KEY on the server before saving an external API key.":
+		"保存外部 API Key 前，请先在服务器配置 AI_CONFIG_ENCRYPTION_KEY 加密密钥。",
+	"AI_CONFIG_ENCRYPTION_KEY must be a base64-encoded 32-byte key.":
+		"AI_CONFIG_ENCRYPTION_KEY 必须是 Base64 编码的 32 字节密钥。",
+	"The saved AI key could not be decrypted. Check the server encryption key or enter a new API key.":
+		"无法解密已保存的 AI 密钥。请检查服务器加密密钥，或重新填写 API Key。",
+	"The saved AI configuration is invalid. Save it again in Settings.":
+		"已保存的 AI 配置无效。请在设置页重新保存。",
+	"Invalid AI settings. Check the provider, model, Base URL and API key.":
+		"AI 设置无效。请检查服务商、模型、Base URL 和 API Key。",
+	"Enter an API key for this provider and Base URL.":
+		"请为此服务商和 Base URL 填写 API Key。",
+	"AI authentication failed. Check the API key and model access.":
+		"AI 身份验证失败。请检查 API Key 和模型访问权限。",
+	"AI rate limit or quota exceeded. Try again later.":
+		"AI 请求频率或额度已超限，请稍后重试。",
+	"AI model or endpoint was not found. Check the model and Base URL.":
+		"未找到 AI 模型或接口。请检查模型和 Base URL。",
+	"The AI request failed. Check the provider, model and Base URL, then retry.":
+		"AI 请求失败。请检查服务商、模型和 Base URL 后重试。",
+	"The model did not complete the tool-calling test. Choose a model that supports tools.":
+		"模型未完成工具调用测试。请选择支持工具调用的模型。",
 } as const;

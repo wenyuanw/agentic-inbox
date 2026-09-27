@@ -306,9 +306,10 @@ function AgentChatConnected({
 	const { startCompose } = useUIStore();
 
 	const agent = useAgent({ agent: "EmailAgent", name: mailboxId });
-	const { messages, sendMessage, status, setMessages, stop } = useAgentChat({
-		agent,
-	});
+	const { messages, sendMessage, status, setMessages, stop, error } =
+		useAgentChat({
+			agent,
+		});
 	const isStreaming = status === "streaming" || status === "submitted";
 
 	useEffect(() => {
@@ -369,6 +370,15 @@ function AgentChatConnected({
 					)}
 				</div>
 			</div>
+
+			{error && (
+				<p role="alert" className="px-3 py-2 text-xs text-kumo-error">
+					{t(
+						error.message ||
+							"The AI request failed. Check the provider, model and Base URL, then retry.",
+					)}
+				</p>
+			)}
 
 			{/* Messages */}
 			<div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-4">

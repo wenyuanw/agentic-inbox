@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 //     https://opensource.org/licenses/Apache-2.0
 
+import { aiConfigRoutes } from "./routes/ai-config";
+import { aiConfigStorageKey } from "./lib/ai-config";
 import { type Context, Hono } from "hono";
 import { cors } from "hono/cors";
 import PostalMime from "postal-mime";
@@ -84,6 +86,8 @@ app.use("/api/*", cors({
 	},
 }));
 app.use("/api/v1/mailboxes/:mailboxId/*", requireMailbox);
+
+app.route("/api/v1/mailboxes/:mailboxId/ai-config", aiConfigRoutes);
 
 // -- Config ---------------------------------------------------------
 
@@ -170,6 +174,7 @@ app.delete("/api/v1/mailboxes/:mailboxId", async (c) => {
 	const mailboxId = c.req.param("mailboxId")!;
 	const key = `mailboxes/${mailboxId}.json`;
 	if (!(await c.env.BUCKET.head(key))) return c.json({ error: "Not found" }, 404);
+	await c.env.BUCKET.delete(aiConfigStorageKey(mailboxId));
 	await c.env.BUCKET.delete(key); // TODO: also delete DO data and R2 attachment blobs
 	return c.body(null, 204);
 });
