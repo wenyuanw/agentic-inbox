@@ -163,9 +163,13 @@ export const mailboxMigrations: Migration[] = [
 		// statements so they're safe to run without a transaction.
 		name: "8_add_folder_date_indexes",
 		sql: `
-            CREATE INDEX IF NOT EXISTS idx_emails_folder_id ON emails(folder_id);
-            CREATE INDEX IF NOT EXISTS idx_emails_date ON emails(date);
-            CREATE INDEX IF NOT EXISTS idx_emails_folder_date ON emails(folder_id, date DESC);
-        `,
+			CREATE INDEX IF NOT EXISTS idx_emails_folder_id ON emails(folder_id);
+			CREATE INDEX IF NOT EXISTS idx_emails_date ON emails(date);
+			CREATE INDEX IF NOT EXISTS idx_emails_folder_date ON emails(folder_id, date DESC);
+		`,
+	},
+	{
+		name: "9_add_envelope_recipient",
+		sql: txn(`ALTER TABLE emails ADD COLUMN envelope_recipient TEXT;`),
 	},
 ];

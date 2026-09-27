@@ -204,7 +204,17 @@ export default function HomeRoute() {
 							</Button>
 						)}
 					</div>
-					<RouterLink className="mail-domain-back" to="/domains">{t("Manage domains")}</RouterLink>
+					<div className="flex flex-wrap items-center gap-5">
+						<RouterLink className="mail-domain-back" to="/domains">{t("Manage domains")}</RouterLink>
+						{accounts.length > 0 && (
+							<RouterLink
+								className="mail-domain-back"
+								to={`/mailbox/${accounts[0].id}/unconfigured`}
+							>
+								{t("Unconfigured mail")}
+							</RouterLink>
+						)}
+					</div>
 					{domains.length > 0 && (
 						<p className="text-sm text-kumo-subtle mt-1">
 							{t("Choose a mailbox to pick up where you left off.")}{" "}

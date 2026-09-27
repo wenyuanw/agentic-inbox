@@ -180,12 +180,15 @@ export function rewriteInlineImages(
 	mailboxId: string,
 	emailId: string,
 	attachments?: { id: string; content_id?: string | null; disposition?: string | null }[],
+	attachmentUrl?: (emailId: string, attachmentId: string) => string,
 ): string {
 	if (!body || !attachments?.length) return body;
 	let result = body;
 	for (const att of attachments) {
 		if (att.disposition === "inline" && att.content_id) {
-			const url = `/api/v1/mailboxes/${mailboxId}/emails/${emailId}/attachments/${att.id}`;
+			const url =
+				attachmentUrl?.(emailId, att.id) ??
+				`/api/v1/mailboxes/${mailboxId}/emails/${emailId}/attachments/${att.id}`;
 			// Strip angle brackets from content_id if present
 			const cid = att.content_id.startsWith("<")
 				? att.content_id.slice(1, -1)

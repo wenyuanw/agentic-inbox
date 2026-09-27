@@ -22,7 +22,7 @@ export interface AIConfigView {
 	encryptionReady: boolean;
 }
 
-export const DEFAULT_AI_MODEL = "@cf/moonshotai/kimi-k2.5";
+export const DEFAULT_AI_MODEL = "@cf/zai-org/glm-4.7-flash";
 export const DEFAULT_AI_BASE_URLS: Record<AIProvider, string> = {
 	"workers-ai": "",
 	openai: "https://api.openai.com/v1",

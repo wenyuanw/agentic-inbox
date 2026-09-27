@@ -28,6 +28,12 @@ import { requireMailbox, type MailboxContext } from "./lib/mailbox";
 
 type AppContext = Context<MailboxContext>;
 
+const UNCONFIGURED_MAILBOX_ID = "__unconfigured_mail__";
+
+function getUnconfiguredMailbox(env: Env) {
+	return env.MAILBOX.get(env.MAILBOX.idFromName(UNCONFIGURED_MAILBOX_ID)) as any;
+}
+
 // -- Request body schemas (kept for validation) ---------------------
 
 const CreateMailboxBody = z.object({
@@ -98,6 +104,70 @@ app.get("/api/v1/config", async (c) => {
 	const setupStatus = await getSetupStatus(c.env);
 	return c.json({ domains, emailAddresses, setupCompleted: setupStatus.completed });
 });
+
+// -- Unconfigured incoming mail -------------------------------------
+
+app.get("/api/v1/unconfigured-emails", async (c) => {
+	const page = Math.max(1, intQuery(c, "page") ?? 1);
+	const limit = Math.min(100, Math.max(1, intQuery(c, "limit") ?? 25));
+	const mailbox = getUnconfiguredMailbox(c.env);
+	const emails = await mailbox.getEmails({ folder: Folders.INBOX, page, limit });
+	const totalCount = await mailbox.countEmails({ folder: Folders.INBOX });
+	return c.json({ emails, totalCount });
+});
+
+app.get("/api/v1/unconfigured-emails/:emailId", async (c) => {
+	const email = await getUnconfiguredMailbox(c.env).getEmail(c.req.param("emailId")!);
+	if (!email) return c.json({ error: "Email not found" }, 404);
+	return c.json(email);
+});
+
+app.put("/api/v1/unconfigured-emails/:emailId", async (c) => {
+	const { read, starred } = (await c.req.json()) as {
+		read?: boolean;
+		starred?: boolean;
+	};
+	const email = await getUnconfiguredMailbox(c.env).updateEmail(
+		c.req.param("emailId")!,
+		{ read, starred },
+	);
+	return email ? c.json(email) : c.json({ error: "Email not found" }, 404);
+});
+
+app.delete("/api/v1/unconfigured-emails/:emailId", async (c) => {
+	const emailId = c.req.param("emailId")!;
+	const attachments = await getUnconfiguredMailbox(c.env).deleteEmail(emailId);
+	if (attachments === null) return c.json({ error: "Email not found" }, 404);
+	if (attachments.length > 0) {
+		await c.env.BUCKET.delete(
+			attachments.map((attachment: any) =>
+				`attachments/${emailId}/${attachment.id}/${attachment.filename}`,
+			),
+		);
+	}
+	return c.body(null, 204);
+});
+
+app.get(
+	"/api/v1/unconfigured-emails/:emailId/attachments/:attachmentId",
+	async (c) => {
+		const { emailId, attachmentId } = c.req.param();
+		const attachment = await getUnconfiguredMailbox(c.env).getAttachment(attachmentId);
+		if (!attachment || attachment.email_id !== emailId)
+			return c.json({ error: "Attachment not found" }, 404);
+		const object = await c.env.BUCKET.get(
+			`attachments/${emailId}/${attachmentId}/${attachment.filename}`,
+		);
+		if (!object) return c.json({ error: "Attachment file not found" }, 404);
+		const filename = attachment.filename.replace(/[\x00-\x1f"\\]/g, "_");
+		return new Response(object.body, {
+			headers: {
+				"Content-Type": attachment.mimetype,
+				"Content-Disposition": `attachment; filename="${filename}"; filename*=UTF-8''${encodeURIComponent(attachment.filename)}`,
+			},
+		});
+	},
+);
 
 // -- Setup wizard ---------------------------------------------------
 
@@ -401,16 +471,25 @@ async function receiveEmail(event: { raw: ReadableStream; rawSize: number; to?: 
 	const ccRecipients = (parsedEmail.cc || []).map((e) => e.address?.toLowerCase()).filter(Boolean) as string[];
 	const bccRecipients = (parsedEmail.bcc || []).map((e) => e.address?.toLowerCase()).filter(Boolean) as string[];
 
-	let mailboxId = event.to?.toLowerCase();
-	if (allowedAddresses.length > 0) {
-		mailboxId = mailboxId ? (allowedAddresses.includes(mailboxId) ? mailboxId : undefined) : allRecipients.find(addr => allowedAddresses.includes(addr));
-		if (!mailboxId) { console.log("Ignoring email: no recipient matches EMAIL_ADDRESSES."); return; }
-	} else { mailboxId ??= allRecipients[0]; }
-	if (!mailboxId) throw new Error("received email with no valid recipient address");
+	const envelopeRecipient =
+		event.to?.toLowerCase() ??
+		(allowedAddresses.length > 0
+			? allRecipients.find((address) => allowedAddresses.includes(address)) ??
+				allRecipients[0]
+			: allRecipients[0]);
+	if (!envelopeRecipient) throw new Error("received email with no valid recipient address");
+	const addressAllowed =
+		allowedAddresses.length === 0 || allowedAddresses.includes(envelopeRecipient);
+	const mailboxExists = addressAllowed
+		? await env.BUCKET.head(`mailboxes/${envelopeRecipient}.json`)
+		: null;
+	const isUnconfigured = !addressAllowed || !mailboxExists;
+	const mailboxId = isUnconfigured ? UNCONFIGURED_MAILBOX_ID : envelopeRecipient;
+	if (isUnconfigured) {
+		console.log(`Saving email for unconfigured recipient ${envelopeRecipient}.`);
+	}
 
 	const messageId = crypto.randomUUID();
-	if (!(await env.BUCKET.head(`mailboxes/${mailboxId}.json`))) { console.log(`Ignoring email for ${mailboxId}: mailbox does not exist`); return; }
-
 	const stub = env.MAILBOX.get(env.MAILBOX.idFromName(mailboxId));
 
 	const attachmentData: StoredAttachment[] = [];
@@ -430,16 +509,18 @@ async function receiveEmail(event: { raw: ReadableStream; rawSize: number; to?: 
 	const emailReferences = parsedEmail.references ? parsedEmail.references.split(/\s+/).filter(Boolean).map(extractMsgId) : [];
 	let threadId = emailReferences[0] || inReplyTo || messageId;
 
-	if (!inReplyTo && emailReferences.length === 0) {
+	if (!isUnconfigured && !inReplyTo && emailReferences.length === 0) {
 		const subjectThread = await (stub as any).findThreadBySubject(parsedEmail.subject || "", parsedEmail.from?.address || undefined);
 		if (subjectThread) threadId = subjectThread;
 	}
+	if (isUnconfigured) threadId = messageId;
 
 	const originalMessageId = parsedEmail.messageId ? extractMsgId(parsedEmail.messageId) : null;
 
 	await stub.createEmail(Folders.INBOX, {
 		id: messageId, subject: parsedEmail.subject || "",
 		sender: (parsedEmail.from?.address || "").toLowerCase(), recipient: allRecipients.join(", "),
+		envelope_recipient: envelopeRecipient,
 		cc: ccRecipients.join(", ") || null, bcc: bccRecipients.join(", ") || null,
 		date: new Date().toISOString(), // uses receive time, not the email's Date header
 		body: parsedEmail.html || parsedEmail.text || "",
@@ -447,11 +528,13 @@ async function receiveEmail(event: { raw: ReadableStream; rawSize: number; to?: 
 		thread_id: threadId, message_id: originalMessageId, raw_headers: JSON.stringify(parsedEmail.headers),
 	}, attachmentData);
 
-	const agentStub = env.EMAIL_AGENT.get(env.EMAIL_AGENT.idFromName(mailboxId));
-	ctx.waitUntil(agentStub.fetch(new Request("https://agents/onNewEmail", {
-		method: "POST", headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({ mailboxId, emailId: messageId, sender: (parsedEmail.from?.address || "").toLowerCase(), subject: parsedEmail.subject || "", threadId }),
-	})).catch((e) => console.error("Auto-draft trigger failed:", (e as Error).message)));
+	if (!isUnconfigured) {
+		const agentStub = env.EMAIL_AGENT.get(env.EMAIL_AGENT.idFromName(mailboxId));
+		ctx.waitUntil(agentStub.fetch(new Request("https://agents/onNewEmail", {
+			method: "POST", headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ mailboxId, emailId: messageId, sender: (parsedEmail.from?.address || "").toLowerCase(), subject: parsedEmail.subject || "", threadId }),
+		})).catch((e) => console.error("Auto-draft trigger failed:", (e as Error).message)));
+	}
 }
 
 export { app, receiveEmail };

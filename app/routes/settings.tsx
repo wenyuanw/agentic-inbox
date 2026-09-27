@@ -30,25 +30,21 @@ const themeOptions = [
 	{
 		value: "light",
 		label: "Light",
-		description: "A bright, familiar inbox",
 		icon: SunIcon,
 	},
 	{
 		value: "dark",
 		label: "Dark",
-		description: "Easy on the eyes at night",
 		icon: MoonIcon,
 	},
 	{
 		value: "system",
 		label: "System",
-		description: "Follow your device appearance",
 		icon: DesktopIcon,
 	},
 ] satisfies {
 	value: ThemePreference;
 	label: string;
-	description: string;
 	icon: typeof SunIcon;
 }[];
 
@@ -127,16 +123,18 @@ export default function SettingsRoute() {
 					</div>
 					<LanguageSelect />
 				</section>
-				<fieldset className="mail-appearance rounded-lg border border-kumo-line bg-kumo-base p-5">
+				<fieldset className="mail-appearance rounded-lg border border-kumo-line bg-kumo-base p-4">
 					<legend className="sr-only">{t("Appearance")}</legend>
-					<h2 className="text-sm font-medium mb-2">{t("Appearance")}</h2>
-					<p className="text-xs text-kumo-subtle mb-4">
-						{t(
-							"Choose your theme. Changes apply immediately and are saved on this browser.",
-						)}
-					</p>
+					<div className="mail-appearance-copy">
+						<h2 className="text-sm font-medium mb-1">{t("Appearance")}</h2>
+						<p className="text-xs text-kumo-subtle">
+							{t(
+								"Choose your theme. Changes apply immediately and are saved on this browser.",
+							)}
+						</p>
+					</div>
 					<div className="mail-theme-options">
-						{themeOptions.map(({ value, label, description, icon: Icon }) => (
+						{themeOptions.map(({ value, label, icon: Icon }) => (
 							<label
 								key={value}
 								className={`mail-theme-option${preference === value ? " is-selected" : ""}`}
@@ -149,14 +147,11 @@ export default function SettingsRoute() {
 									onChange={() => setPreference(value)}
 								/>
 								<Icon
-									size={24}
+									size={16}
 									weight={preference === value ? "fill" : "regular"}
 									aria-hidden="true"
 								/>
-								<span className="mail-theme-option-label">{t(label)}</span>
-								<span className="mail-theme-option-description">
-									{t(description)}
-								</span>
+								<span>{t(label)}</span>
 							</label>
 						))}
 					</div>

@@ -168,6 +168,16 @@ const api = {
 		put<Email>(`/api/v1/mailboxes/${mailboxId}/emails/${id}`, data),
 	deleteEmail: (mailboxId: string, id: string) =>
 		del<void>(`/api/v1/mailboxes/${mailboxId}/emails/${id}`),
+	listUnconfiguredEmails: (params: Record<string, string>, opts?: { signal?: AbortSignal }) =>
+		get<EmailListResponse>("/api/v1/unconfigured-emails", { params, signal: opts?.signal }),
+	getUnconfiguredEmail: (id: string, opts?: { signal?: AbortSignal }) =>
+		get<Email>(`/api/v1/unconfigured-emails/${id}`, { signal: opts?.signal }),
+	updateUnconfiguredEmail: (id: string, data: unknown) =>
+		put<Email>(`/api/v1/unconfigured-emails/${id}`, data),
+	deleteUnconfiguredEmail: (id: string) =>
+		del<void>(`/api/v1/unconfigured-emails/${id}`),
+	getUnconfiguredAttachmentUrl: (emailId: string, attachmentId: string) =>
+		`/api/v1/unconfigured-emails/${emailId}/attachments/${attachmentId}`,
 	moveEmail: (mailboxId: string, id: string, folderId: string) =>
 		post<void>(`/api/v1/mailboxes/${mailboxId}/emails/${id}/move`, { folderId }),
 	getThread: (mailboxId: string, threadId: string, opts?: { signal?: AbortSignal }) =>

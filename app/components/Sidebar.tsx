@@ -2,11 +2,8 @@ import { useI18n } from "~/hooks/useI18n";
 import { Dialog, Input } from "@cloudflare/kumo";
 import {
 	ArchiveIcon,
-	CaretLeftIcon,
-	EnvelopeSimpleIcon,
 	FileIcon,
 	FolderSimpleIcon,
-	GearSixIcon,
 	PaperPlaneTiltIcon,
 	PencilSimpleIcon,
 	PlusIcon,
@@ -14,18 +11,17 @@ import {
 	StarIcon,
 	TrashIcon,
 	TrayIcon,
+	WarningCircleIcon,
 } from "@phosphor-icons/react";
 import { type FormEvent, useState } from "react";
 import {
 	NavLink,
 	useLocation,
-	useNavigate,
 	useParams,
 	useSearchParams,
 } from "react-router";
 import { Folders } from "shared/folders";
 import { useCreateFolder, useFolders } from "~/queries/folders";
-import { useMailbox } from "~/queries/mailboxes";
 import { useUIStore } from "~/hooks/useUIStore";
 import MailIconButton from "./MailIconButton";
 
@@ -43,11 +39,9 @@ export default function Sidebar() {
 	const { t } = useI18n();
 
 	const { mailboxId } = useParams<{ mailboxId: string }>();
-	const navigate = useNavigate();
 	const location = useLocation();
 	const [searchParams] = useSearchParams();
 	const { data: folders = [] } = useFolders(mailboxId);
-	const { data: mailbox } = useMailbox(mailboxId);
 	const createFolder = useCreateFolder();
 	const { startCompose, closeSidebar, closePanel, isSidebarCollapsed } =
 		useUIStore();
@@ -128,6 +122,16 @@ export default function Sidebar() {
 						</NavLink>
 					);
 				})}
+				<NavLink
+					to={`/mailbox/${mailboxId}/unconfigured`}
+					onClick={navigateFolder}
+					className={`mail-nav-link ${location.pathname.endsWith("/unconfigured") ? "is-active" : ""}`}
+					title={t("Unconfigured mail")}
+					aria-current={location.pathname.endsWith("/unconfigured") ? "page" : false}
+				>
+					<WarningCircleIcon size={20} weight={location.pathname.endsWith("/unconfigured") ? "fill" : "regular"} />
+					<span className="mail-nav-label">{t("Unconfigured mail")}</span>
+				</NavLink>
 				<div className="mail-folder-heading">
 					<span>{t("Folders")}</span>
 					<MailIconButton
@@ -165,30 +169,6 @@ export default function Sidebar() {
 					</button>
 				)}
 			</nav>
-			<NavLink
-				className="mail-sidebar-settings"
-				to={`/mailbox/${mailboxId}/settings`}
-				onClick={navigateFolder}
-			>
-				<GearSixIcon size={18} />
-				<span>{t("Settings")}</span>
-			</NavLink>
-			<button
-				type="button"
-				className="mail-sidebar-account"
-				onClick={() => {
-					navigate("/");
-					closeSidebar();
-				}}
-				title={t("Switch mailbox")}
-			>
-				<EnvelopeSimpleIcon size={19} />
-				<span>
-					<strong>{mailbox?.settings?.fromName || t("Your mailbox")}</strong>
-					<small>{mailbox?.email || mailboxId}</small>
-				</span>
-				<CaretLeftIcon size={15} />
-			</button>
 			<Dialog.Root open={createOpen} onOpenChange={setCreateOpen}>
 				<Dialog size="sm" className="p-6 mail-dialog">
 					<Dialog.Title className="text-lg font-medium mb-5">

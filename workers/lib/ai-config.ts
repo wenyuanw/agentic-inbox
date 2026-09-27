@@ -157,7 +157,16 @@ export async function readStoredAIConfig(
 	if (!obj)
 		return { provider: "workers-ai", model: DEFAULT_AI_MODEL, baseURL: "" };
 	try {
-		return StoredConfigSchema.parse(await obj.json());
+		const config = StoredConfigSchema.parse(await obj.json());
+		// Kimi K2.5 now aliases to a model that requires Workers Paid. Keep
+		// mailboxes using the former default on a model available to Workers Free.
+		if (
+			config.provider === "workers-ai" &&
+			config.model === "@cf/moonshotai/kimi-k2.5"
+		) {
+			return { ...config, model: DEFAULT_AI_MODEL };
+		}
+		return config;
 	} catch {
 		throw new AIConfigError(
 			"The saved AI configuration is invalid. Save it again in Settings.",
