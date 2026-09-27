@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 //     https://opensource.org/licenses/Apache-2.0
 
+import { useI18n } from "~/hooks/useI18n";
 import {
 	Button,
 	Empty,
@@ -11,7 +12,11 @@ import {
 	TooltipProvider,
 } from "@cloudflare/kumo";
 import { WarningIcon } from "@phosphor-icons/react";
-import { MutationCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+	MutationCache,
+	QueryClient,
+	QueryClientProvider,
+} from "@tanstack/react-query";
 import { forwardRef, useState } from "react";
 import {
 	isRouteErrorResponse,
@@ -23,6 +28,10 @@ import {
 	ScrollRestoration,
 } from "react-router";
 import { ApiError } from "~/services/api";
+import PWAProvider from "~/components/PWAProvider";
+import { ThemeProvider } from "~/components/ThemeProvider";
+import { themeBootstrapScript } from "~/lib/theme";
+import { localeBootstrapScript } from "~/lib/i18n";
 import "./index.css";
 
 function makeQueryClient() {
@@ -33,7 +42,11 @@ function makeQueryClient() {
 				refetchOnWindowFocus: false,
 				retry: (failureCount, error) => {
 					// Don't retry 4xx errors (not found, unauthorized, etc.)
-					if (error instanceof ApiError && error.status >= 400 && error.status < 500) {
+					if (
+						error instanceof ApiError &&
+						error.status >= 400 &&
+						error.status < 500
+					) {
 						return false;
 					}
 					return failureCount < 2;
@@ -76,17 +89,25 @@ const KumoLink = forwardRef<
 });
 
 export function Layout({ children }: { children: React.ReactNode }) {
+	const { localeTag } = useI18n();
 	return (
-		<html lang="en">
+		<html lang={localeTag} suppressHydrationWarning>
 			<head>
 				<meta charSet="UTF-8" />
-				<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+				<script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
+				<script dangerouslySetInnerHTML={{ __html: localeBootstrapScript }} />
+				<link rel="icon" type="image/svg+xml" href="/favicon.svg?v=cloud-envelope" />
 				<link
 					rel="icon"
 					type="image/x-icon"
-					href="/favicon.ico"
+					href="/favicon.ico?v=cloud-envelope"
 					sizes="48x48 32x32 16x16"
 				/>
+				<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+				<link rel="manifest" href="/site.webmanifest" />
+				<meta name="theme-color" content="#f6f8fc" media="(prefers-color-scheme: light)" />
+				<meta name="theme-color" content="#111318" media="(prefers-color-scheme: dark)" />
+				<meta name="apple-mobile-web-app-title" content="Agentic Inbox" />
 				<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 				<title>Agentic Inbox</title>
 				<Meta />
@@ -114,31 +135,36 @@ export default function App() {
 	// browser reuses the same singleton across navigations.
 	const [queryClient] = useState(getQueryClient);
 	return (
-		<QueryClientProvider client={queryClient}>
-			<LinkProvider component={KumoLink}>
-				<TooltipProvider>
-					<Toasty>
-						<Outlet />
-					</Toasty>
-				</TooltipProvider>
-			</LinkProvider>
-		</QueryClientProvider>
+		<ThemeProvider>
+			<QueryClientProvider client={queryClient}>
+				<LinkProvider component={KumoLink}>
+					<TooltipProvider>
+						<Toasty>
+							<PWAProvider><Outlet /></PWAProvider>
+						</Toasty>
+					</TooltipProvider>
+				</LinkProvider>
+			</QueryClientProvider>
+		</ThemeProvider>
 	);
 }
 
 export function ErrorBoundary({ error }: { error: unknown }) {
-	let title = "Something went wrong";
-	let description = "An unexpected error occurred. Please try again.";
+	const { t } = useI18n();
+
+	let title = t("Something went wrong");
+	let description = t("An unexpected error occurred. Please try again.");
 	let status: number | null = null;
 
 	if (isRouteErrorResponse(error)) {
 		status = error.status;
 		if (error.status === 404) {
-			title = "Page not found";
-			description =
-				"The page you're looking for doesn't exist or has been moved.";
+			title = t("Page not found");
+			description = t(
+				"The page you're looking for doesn't exist or has been moved.",
+			);
 		} else {
-			title = `Error ${error.status}`;
+			title = t("Error {status}", { status: error.status });
 			description = error.statusText || description;
 		}
 	} else if (error instanceof Error && import.meta.env.DEV) {
@@ -149,7 +175,7 @@ export function ErrorBoundary({ error }: { error: unknown }) {
 		<div className="flex items-center justify-center min-h-screen p-8">
 			<Empty
 				icon={<WarningIcon size={48} className="text-kumo-inactive" />}
-				title={status === 404 ? "404 — Page not found" : title}
+				title={status === 404 ? t("404 — Page not found") : title}
 				description={description}
 				contents={
 					<Button
@@ -158,7 +184,7 @@ export function ErrorBoundary({ error }: { error: unknown }) {
 							window.location.href = "/";
 						}}
 					>
-						Go Home
+						{t("Go Home")}
 					</Button>
 				}
 			/>

@@ -1,185 +1,288 @@
-// Copyright (c) 2026 Cloudflare, Inc.
-// Licensed under the Apache 2.0 license found in the LICENSE file or at:
-//     https://opensource.org/licenses/Apache-2.0
-
-import { Banner, Button, Input } from "@cloudflare/kumo";
-import { FloppyDiskIcon, PaperPlaneTiltIcon, XIcon } from "@phosphor-icons/react";
+import { useI18n } from "~/hooks/useI18n";
+import { Dialog } from "@cloudflare/kumo";
+import {
+	ArrowsInSimpleIcon,
+	ArrowsOutSimpleIcon,
+	CheckIcon,
+	FloppyDiskIcon,
+	MinusIcon,
+	PaperPlaneTiltIcon,
+	TrashIcon,
+	XIcon,
+} from "@phosphor-icons/react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router";
+import { useIsMobile } from "~/hooks/useIsMobile";
+import { useUIStore } from "~/hooks/useUIStore";
 import { useComposeForm } from "~/hooks/useComposeForm";
+import MailIconButton from "./MailIconButton";
 import RichTextEditor from "./RichTextEditor";
 
 export default function ComposePanel() {
-	const { mailboxId, folder } = useParams<{
-		mailboxId: string;
-		folder: string;
-	}>();
+	const { t } = useI18n();
 
-	const {
-		to,
-		setTo,
-		cc,
-		setCc,
-		bcc,
-		setBcc,
-		showCcBcc,
-		setShowCcBcc,
-		subject,
-		setSubject,
-		body,
-		setBody,
-		error,
-		isSavingDraft,
-		isSending,
-		formTitle,
-		handleSaveDraft,
-		handleSend,
-		closeCompose,
-		closePanel,
-	} = useComposeForm(mailboxId, folder);
-
+	const { mailboxId } = useParams<{ mailboxId: string }>();
+	const form = useComposeForm(mailboxId);
+	const isMobile = useIsMobile();
+	const panelRef = useRef<HTMLElement>(null);
+	const focusRequest = useUIStore((state) => state.composeFocusRequest);
+	const [minimized, setMinimized] = useState(false);
+	const [maximized, setMaximized] = useState(false);
+	const [discardOpen, setDiscardOpen] = useState(false);
+	const toRef = useRef<HTMLInputElement>(null);
+	const formRef = useRef<HTMLFormElement>(null);
+	const busy = form.isSending || form.isSavingDraft;
+	useEffect(() => {
+		const previousFocus = document.activeElement as HTMLElement;
+		toRef.current?.focus();
+		return () => {
+			if (previousFocus?.isConnected) previousFocus.focus();
+		};
+	}, []);
+	useEffect(() => {
+		setMinimized(false);
+	}, [focusRequest]);
+	useEffect(() => {
+		if (!minimized) toRef.current?.focus();
+	}, [focusRequest, minimized]);
+	useEffect(() => {
+		if (!isMobile || minimized) return;
+		const handler = (event: KeyboardEvent) => {
+			if (event.defaultPrevented || discardOpen || event.key !== "Tab") return;
+			const elements = [
+				...(panelRef.current?.querySelectorAll<HTMLElement>(
+					'button:not(:disabled), input, [contenteditable="true"]',
+				) || []),
+			].filter((element) => element.offsetParent !== null);
+			const first = elements[0],
+				last = elements.at(-1);
+			if (event.shiftKey && document.activeElement === first) {
+				event.preventDefault();
+				last?.focus();
+			} else if (!event.shiftKey && document.activeElement === last) {
+				event.preventDefault();
+				first?.focus();
+			}
+		};
+		document.addEventListener("keydown", handler);
+		return () => document.removeEventListener("keydown", handler);
+	}, [isMobile, minimized, discardOpen]);
 	return (
-		<div className="flex flex-col h-full bg-kumo-base">
-			<div className="flex items-center justify-between px-4 py-3 border-b border-kumo-line shrink-0 md:px-6">
-				<h2 className="text-base font-semibold text-kumo-default">
-					{formTitle}
-				</h2>
-				<div className="flex items-center gap-1">
-					<Button
-						variant="ghost"
-						shape="square"
-						size="sm"
-						icon={<XIcon size={18} />}
-						onClick={closeCompose}
-						disabled={isSending}
-						aria-label="Close compose"
-					/>
+		<section
+			ref={panelRef}
+			className={`mail-compose-window ${minimized ? "is-minimized" : ""} ${maximized ? "is-maximized" : ""}`}
+			role={isMobile && !minimized ? "dialog" : "region"}
+			aria-modal={isMobile && !minimized ? true : undefined}
+			aria-label={form.formTitle}
+		>
+			<div className="mail-compose-titlebar">
+				<button
+					type="button"
+					className="mail-compose-title"
+					onClick={() => setMinimized(!minimized)}
+					aria-expanded={!minimized}
+				>
+					{minimized && form.subject ? form.subject : form.formTitle}
+				</button>
+				<div className="mail-compose-window-actions">
+					<MailIconButton
+						label={minimized ? t("Restore composer") : t("Minimize composer")}
+						onClick={() => setMinimized(!minimized)}
+					>
+						<MinusIcon size={18} />
+					</MailIconButton>
+					<MailIconButton
+						label={maximized ? t("Exit full screen") : t("Expand composer")}
+						onClick={() => {
+							setMaximized(!maximized);
+							setMinimized(false);
+						}}
+					>
+						{maximized ? (
+							<ArrowsInSimpleIcon size={17} />
+						) : (
+							<ArrowsOutSimpleIcon size={17} />
+						)}
+					</MailIconButton>
+					<MailIconButton
+						label={t("Save and close")}
+						disabled={busy}
+						onClick={() => void form.handleClose()}
+					>
+						<XIcon size={19} />
+					</MailIconButton>
 				</div>
 			</div>
-
 			<form
-				onSubmit={(e) => handleSend(e, closePanel)}
-				className="flex flex-col flex-1 min-h-0 overflow-y-auto"
+				ref={formRef}
+				className="mail-compose-form"
+				onSubmit={(event) => form.handleSend(event, form.closeCompose)}
+				onKeyDown={(event) => {
+					if (event.key === "Escape" && !discardOpen) {
+						event.preventDefault();
+						event.stopPropagation();
+						void form.handleClose();
+					}
+					if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+						event.preventDefault();
+						formRef.current?.requestSubmit();
+					}
+					if (
+						(event.ctrlKey || event.metaKey) &&
+						event.key.toLowerCase() === "s"
+					) {
+						event.preventDefault();
+						void form.handleSaveDraft();
+					}
+				}}
 			>
-				<div className="p-4 md:p-6 space-y-4">
-					{error && <Banner variant="error" text={error} />}
-
-					<div className="space-y-3">
-						<div className="flex items-center gap-2">
-							<label className="text-sm font-medium text-kumo-subtle w-14 shrink-0">
-								To
-							</label>
-							<div className="flex-1 flex items-center gap-2 min-w-0">
-								<Input
-									type="text"
-									placeholder="recipient@example.com"
-									size="sm"
-									value={to}
-									onChange={(e) => setTo(e.target.value)}
-									required
-								/>
-								{!showCcBcc && (
-									<button
-										type="button"
-										onClick={() => setShowCcBcc(true)}
-										className="shrink-0 text-xs text-kumo-link hover:text-kumo-link-hover font-medium"
-									>
-										CC / BCC
-									</button>
-								)}
-							</div>
-						</div>
-
-						{showCcBcc && (
-							<div className="flex items-center gap-2">
-								<label className="text-sm font-medium text-kumo-subtle w-14 shrink-0">
-									CC
-								</label>
-								<div className="flex-1">
-									<Input
-										type="text"
-										size="sm"
-										value={cc}
-										onChange={(e) => setCc(e.target.value)}
-										placeholder="Separate multiple addresses with commas"
-									/>
-								</div>
-							</div>
-						)}
-
-						{showCcBcc && (
-							<div className="flex items-center gap-2">
-								<label className="text-sm font-medium text-kumo-subtle w-14 shrink-0">
-									BCC
-								</label>
-								<div className="flex-1">
-									<Input
-										type="text"
-										size="sm"
-										value={bcc}
-										onChange={(e) => setBcc(e.target.value)}
-										placeholder="Separate multiple addresses with commas"
-									/>
-								</div>
-							</div>
-						)}
-
-						<div className="flex items-center gap-2">
-							<label className="text-sm font-medium text-kumo-subtle w-14 shrink-0">
-								Subject
-							</label>
-							<div className="flex-1">
-								<Input
-									type="text"
-									placeholder="Email subject"
-									size="sm"
-									value={subject}
-									onChange={(e) => setSubject(e.target.value)}
-									required
-								/>
-							</div>
-						</div>
+				{form.error && (
+					<div role="alert" className="mail-compose-error">
+						{t(form.error)}
+						<button
+							className="mail-text-button"
+							type="button"
+							onClick={() => {
+								form.setError(null);
+								if (form.saveState === "error") void form.handleSaveDraft();
+							}}
+						>
+							{form.saveState === "error" ? t("Retry save") : t("Dismiss")}
+						</button>
 					</div>
-
-					<div className="border border-kumo-line rounded-md overflow-hidden bg-kumo-base">
-						<RichTextEditor
-							value={body}
-							onChange={setBody}
+				)}
+				<div className="mail-compose-fields">
+					<div className="mail-compose-field">
+						<label htmlFor="compose-to">{t("To")}</label>
+						<input
+							ref={toRef}
+							id="compose-to"
+							value={form.to}
+							onChange={(event) => form.setTo(event.target.value)}
+							placeholder={t("Recipients")}
+							autoComplete="off"
+							required
+						/>
+						<button
+							type="button"
+							className="mail-cc-toggle"
+							aria-expanded={form.showCcBcc}
+							onClick={() => form.setShowCcBcc(!form.showCcBcc)}
+						>
+							{t("Cc / Bcc")}
+						</button>
+					</div>
+					{form.showCcBcc && (
+						<>
+							<div className="mail-compose-field">
+								<label htmlFor="compose-cc">{t("Cc")}</label>
+								<input
+									id="compose-cc"
+									value={form.cc}
+									onChange={(event) => form.setCc(event.target.value)}
+									placeholder={t("Separate addresses with commas")}
+								/>
+							</div>
+							<div className="mail-compose-field">
+								<label htmlFor="compose-bcc">{t("Bcc")}</label>
+								<input
+									id="compose-bcc"
+									value={form.bcc}
+									onChange={(event) => form.setBcc(event.target.value)}
+									placeholder={t("Separate addresses with commas")}
+								/>
+							</div>
+						</>
+					)}
+					<div className="mail-compose-field">
+						<label htmlFor="compose-subject" className="sr-only">
+							{t("Subject")}
+						</label>
+						<input
+							id="compose-subject"
+							value={form.subject}
+							onChange={(event) => form.setSubject(event.target.value)}
+							placeholder={t("Subject")}
 						/>
 					</div>
 				</div>
-
-				{/* Footer actions */}
-				<div className="mt-auto px-4 py-3 border-t border-kumo-line bg-kumo-fill/30 shrink-0 md:px-6">
-					<div className="flex items-center justify-between">
-						<Button type="button" variant="ghost" size="sm" onClick={closeCompose} disabled={isSending}>
-							Discard
-						</Button>
-						<div className="flex items-center gap-2">
-							<Button
-								type="button"
-								variant="secondary"
-								size="sm"
-								loading={isSavingDraft}
-								disabled={isSending}
-								icon={<FloppyDiskIcon size={14} />}
-								onClick={handleSaveDraft}
-							>
-								{isSavingDraft ? "Saving..." : "Save as Draft"}
-							</Button>
-							<Button
-								type="submit"
-								variant="primary"
-								size="sm"
-								loading={isSending}
-								disabled={isSavingDraft || isSending}
-								icon={<PaperPlaneTiltIcon size={14} />}
-							>
-								{isSending ? "Sending..." : "Send"}
-							</Button>
-						</div>
-					</div>
+				<div className="mail-compose-editor">
+					<RichTextEditor value={form.body} onChange={form.setBody} />
+				</div>
+				<div className="mail-compose-footer">
+					<button type="submit" className="mail-primary-button" disabled={busy}>
+						<PaperPlaneTiltIcon size={17} />
+						{form.isSending ? t("Sending…") : t("Send")}
+					</button>
+					<MailIconButton
+						label={t("Save draft (⌘/Ctrl S)")}
+						disabled={busy}
+						onClick={() => void form.handleSaveDraft()}
+					>
+						<FloppyDiskIcon size={20} />
+					</MailIconButton>
+					<span className="mail-draft-status" role="status">
+						{form.isSavingDraft ? (
+							t("Saving…")
+						) : form.saveState === "error" ? (
+							t("Not saved")
+						) : form.dirty ? (
+							t("Unsaved changes")
+						) : form.saveState === "saved" ? (
+							<>
+								<CheckIcon size={13} />
+								{t("Saved to Drafts")}
+							</>
+						) : (
+							""
+						)}
+					</span>
+					<MailIconButton
+						label={t("Discard draft")}
+						className="mail-discard-button"
+						disabled={busy}
+						onClick={() => {
+							if (form.hasContent || form.saveState === "saved")
+								setDiscardOpen(true);
+							else void form.handleDiscard();
+						}}
+					>
+						<TrashIcon size={20} />
+					</MailIconButton>
 				</div>
 			</form>
-		</div>
+			<Dialog.Root open={discardOpen} onOpenChange={setDiscardOpen}>
+				<Dialog size="sm" className="p-6 mail-dialog">
+					<Dialog.Title className="text-lg mb-3">
+						{t("Discard this draft?")}
+					</Dialog.Title>
+					<Dialog.Description className="text-sm text-kumo-subtle mb-6">
+						{t(
+							"Your message will be deleted. To keep it, save and close the composer instead.",
+						)}
+					</Dialog.Description>
+					<div className="flex justify-end gap-2">
+						<button
+							className="mail-text-button"
+							type="button"
+							onClick={() => setDiscardOpen(false)}
+						>
+							{t("Keep writing")}
+						</button>
+						<button
+							className="mail-primary-button"
+							type="button"
+							disabled={busy}
+							onClick={() => {
+								setDiscardOpen(false);
+								void form.handleDiscard();
+							}}
+						>
+							{t("Discard")}
+						</button>
+					</div>
+				</Dialog>
+			</Dialog.Root>
+		</section>
 	);
 }

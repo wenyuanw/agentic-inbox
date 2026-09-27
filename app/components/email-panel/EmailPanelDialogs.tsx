@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 //     https://opensource.org/licenses/Apache-2.0
 
+import { useI18n } from "~/hooks/useI18n";
 import { Button, Dialog } from "@cloudflare/kumo";
 import { downloadFile } from "~/lib/utils";
 import type { Email } from "~/types";
@@ -46,8 +47,10 @@ function getSourceHeaders(msg: Email): { key: string; value: string }[] {
 	if (msg.bcc) headers.push({ key: "Bcc", value: msg.bcc });
 	if (msg.subject) headers.push({ key: "Subject", value: msg.subject });
 	if (msg.date) headers.push({ key: "Date", value: msg.date });
-	if (msg.message_id) headers.push({ key: "Message-ID", value: msg.message_id });
-	if (msg.in_reply_to) headers.push({ key: "In-Reply-To", value: msg.in_reply_to });
+	if (msg.message_id)
+		headers.push({ key: "Message-ID", value: msg.message_id });
+	if (msg.in_reply_to)
+		headers.push({ key: "In-Reply-To", value: msg.in_reply_to });
 	if (msg.email_references) {
 		headers.push({ key: "References", value: msg.email_references });
 	}
@@ -61,7 +64,11 @@ export default function EmailPanelDialogs({
 	onCloseSource,
 	onClosePreview,
 }: EmailPanelDialogsProps) {
-	const sourceHeaders = sourceViewEmail ? getSourceHeaders(sourceViewEmail) : [];
+	const { t } = useI18n();
+
+	const sourceHeaders = sourceViewEmail
+		? getSourceHeaders(sourceViewEmail)
+		: [];
 
 	return (
 		<>
@@ -73,7 +80,7 @@ export default function EmailPanelDialogs({
 			>
 				<Dialog size="lg">
 					<Dialog.Title>
-						Email Source Headers
+						{t("Email Source Headers")}
 						{sourceViewEmail && (
 							<span className="text-sm font-normal text-kumo-subtle ml-2">
 								{sourceViewEmail.subject}
@@ -101,7 +108,7 @@ export default function EmailPanelDialogs({
 							</table>
 							{sourceHeaders.length === 0 && (
 								<p className="text-sm text-kumo-subtle text-center py-8">
-									No header data available for this email.
+									{t("No header data available for this email.")}
 								</p>
 							)}
 						</div>
@@ -109,7 +116,7 @@ export default function EmailPanelDialogs({
 					<div className="flex justify-end mt-4">
 						<Dialog.Close>
 							<Button variant="secondary" size="sm">
-								Close
+								{t("Close")}
 							</Button>
 						</Dialog.Close>
 					</div>
@@ -143,11 +150,11 @@ export default function EmailPanelDialogs({
 								}
 							}}
 						>
-							Download Original
+							{t("Download Original")}
 						</Button>
 						<Dialog.Close>
 							<Button variant="primary" size="sm">
-								Close
+								{t("Close")}
 							</Button>
 						</Dialog.Close>
 					</div>

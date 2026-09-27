@@ -37,10 +37,13 @@ https://github.com/cloudflare/agentic-inbox/issues/4#issuecomment-4269118513
 
 ## Features
 
+- **Gmail-inspired workspace** — Rounded search and folder navigation, compact conversation rows, batch actions with Undo, and a floating composer with minimize/expand controls. Responsive layouts and motion respect reduced-motion preferences.
+- **Safe draft editing** — Autosave updates the same draft, Save and close keeps it in Drafts, and navigating to another mailbox saves pending changes first. Press `C` to compose, `/` or `⌘/Ctrl K` to search, `⌘/Ctrl S` to save a draft, and `⌘/Ctrl Enter` to send.
 - **Full email client** — Send and receive emails via Cloudflare Email Routing with a rich text composer, reply/forward threading, folder organization, search, and attachments
 - **Per-mailbox isolation** — Each mailbox runs in its own Durable Object with SQLite storage and R2 for attachments
 - **Built-in AI agent** — Side panel with 9 email tools for reading, searching, drafting, and sending
 - **Auto-draft on new email** — Agent automatically reads inbound emails and generates draft replies, always requiring explicit confirmation before sending
+- **AI provider settings** — Per-mailbox Workers AI, OpenAI-compatible APIs (custom Base URL), Anthropic and Google Gemini; configurable model IDs, encrypted write-only API keys, and a tool-calling connection test.
 - **Configurable and persistent** — Custom system prompts per mailbox, persistent chat history, streaming markdown responses, and tool call visibility
 
 ## Stack
@@ -61,6 +64,41 @@ npm run dev
 
 1. Set your domain in `wrangler.jsonc`
 2. Create an R2 bucket named `agentic-inbox`: `wrangler r2 bucket create agentic-inbox`
+
+### AI provider configuration
+
+The default remains Cloudflare Workers AI with Kimi K2.5 for the assistant and
+Llama models for content checks. Open **Settings → AI connection** to choose a
+provider and a model that supports tool calling. OpenAI-compatible endpoints use
+Chat Completions; provide the API base path (for example, `https://api.openai.com/v1`),
+without `/chat/completions`. Anthropic defaults to `/v1`, Gemini to `/v1beta`.
+
+Before saving an external API key, generate a stable encryption key:
+
+```bash
+openssl rand -base64 32
+npx wrangler secret put AI_CONFIG_ENCRYPTION_KEY
+```
+
+Paste the generated value into the secret prompt. For local development, set the
+same variable in the ignored `.dev.vars` file. Do not commit either key. Keep a
+secure backup: rotating the encryption key requires re-entering each saved API key.
+Keys are AES-GCM encrypted in separate per-mailbox R2 configuration objects, bound
+to the mailbox ID, and are never included in configuration responses or mailbox
+settings. Leaving the API Key field empty preserves it only for the same provider
+and Base URL; switching endpoints requires a new key. Selecting Workers AI and
+saving removes the external key.
+
+**Test connection** uses only a fixed prompt and a harmless tool schema, without
+reading or sending mail; it may incur provider charges. It checks tool support
+and does not save configuration. Click **Save AI settings** to apply changes to
+new requests. With an external provider, assistant chat, automatic drafts and
+content checks all use that provider and model; email content is sent there when
+these features run. Settings remain behind the existing shared Cloudflare Access
+policy, which allows authorized teammates to manage all mailboxes.
+
+Run the isolated configuration and mocked-provider checks with `npm run test:ai`.
+These tests make no real model requests or send emails.
 
 ### Deploy
 
@@ -96,3 +134,45 @@ Any user who passes the shared Cloudflare Access policy can access all mailboxes
 ## License
 
 Apache 2.0 -- see [LICENSE](LICENSE).
+
+## Install as a PWA
+
+Use **Install app** on the setup page, mailbox list, or mailbox settings. Chrome and
+Edge can show a native installation prompt when the site is eligible. On iPhone
+or iPad, open the site in Safari and choose **Share → Add to Home Screen**. A
+production deployment needs HTTPS; localhost also supports development testing.
+
+The service worker provides a bilingual offline retry page. Reading, sending,
+AI features, and configuration still require a connection. It does not cache
+mail content, credentials, API responses, or authenticated pages, and does not
+queue email sends. Installation does not enable notifications or background mail sync.
+
+Service worker updates show a refresh prompt; save open edits before accepting.
+Only the accepting tab reloads automatically. When changing `public/offline.html`,
+also increment the cache version in `public/sw.js` so installed clients receive
+an updated offline page. Verify cache and routing behavior with `npm run test:pwa`.
+
+## Multiple mail domains
+
+Open **Manage domains** from the mailbox list or mailbox settings. Use **Add domain**
+to configure another Cloudflare domain and its Resend key. Each domain can use a
+different Cloudflare user token and Resend account. Tokens must cover that domain;
+Resend setup requires Full Access. **Reconfigure** updates one domain after DNS and
+sending verification succeed. Existing mailboxes, mail, and other domain settings
+are preserved. The wizard changes live DNS and catch-all routing only when started.
+
+Each domain is stored independently under `config/domains/` in R2. New Resend keys
+are encrypted with the server's `AI_CONFIG_ENCRYPTION_KEY` (the same 32-byte master
+key used for AI credentials). Set this secret before configuring domains, and keep
+it stable. Existing `config/setup.json` single-domain configurations remain readable;
+reconfiguring a legacy domain writes its encrypted replacement without deleting mail.
+No plaintext credentials or encrypted key payloads are returned in domain status.
+
+Mailbox creation offers the configured domains. Incoming messages are assigned using
+Cloudflare's envelope recipient, including CC/BCC deliveries. Sending chooses the
+credentials for the sender's domain. Domains manually listed in `DOMAINS` continue
+to work; each needs its own routing and sending setup. Local configuration and mail
+storage are separate from production; real incoming mail still needs a deployed Worker.
+
+Run `npm run test:domains` for mocked routing, credential, compatibility and multi-domain
+mailbox checks. These tests do not modify external DNS or send actual email.

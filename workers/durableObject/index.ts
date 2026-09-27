@@ -76,6 +76,7 @@ interface EmailData {
 	subject: string;
 	sender: string;
 	recipient: string;
+	envelope_recipient?: string | null;
 	cc?: string | null;
 	bcc?: string | null;
 	date: string;
@@ -151,6 +152,7 @@ export class MailboxDO extends DurableObject<Env> {
 				subject: schema.emails.subject,
 				sender: schema.emails.sender,
 				recipient: schema.emails.recipient,
+				envelope_recipient: schema.emails.envelope_recipient,
 				cc: schema.emails.cc,
 				bcc: schema.emails.bcc,
 				date: schema.emails.date,
@@ -321,10 +323,11 @@ export class MailboxDO extends DurableObject<Env> {
 				SELECT
 					conversation_id,
 					COUNT(*) as thread_count,
-					SUM(CASE WHEN read = 0 THEN 1 ELSE 0 END) as thread_unread_count,
+					-- Drafts are authored messages, so they do not make an Inbox conversation unread.
+					SUM(CASE WHEN read = 0 AND folder_id != '${Folders.DRAFT}' THEN 1 ELSE 0 END) as thread_unread_count,
 					SUM(CASE WHEN read = 1 THEN 1 ELSE 0 END) as thread_read_count,
 					GROUP_CONCAT(DISTINCT sender) as participants,
-					SUM(CASE WHEN folder_id = (SELECT id FROM folders WHERE name = 'draft' LIMIT 1) THEN 1 ELSE 0 END) as has_draft
+					SUM(CASE WHEN folder_id = '${Folders.DRAFT}' THEN 1 ELSE 0 END) as has_draft
 				FROM all_emails_with_conversation
 				WHERE conversation_id IN (
 					SELECT DISTINCT conversation_id FROM all_emails_with_conversation
@@ -357,8 +360,8 @@ export class MailboxDO extends DurableObject<Env> {
 				lif.in_reply_to, lif.email_references,
 				SUBSTR(lif.body, 1, 300) as snippet,
 				cs.thread_count, cs.thread_unread_count, cs.participants,
-				CASE WHEN lmc.folder_id != (SELECT id FROM folders WHERE name = 'sent' LIMIT 1)
-					AND lmc.folder_id != (SELECT id FROM folders WHERE name = 'draft' LIMIT 1)
+				CASE WHEN lmc.folder_id != '${Folders.SENT}'
+					AND lmc.folder_id != '${Folders.DRAFT}'
 					AND cs.thread_read_count > 0
 					THEN 1 ELSE 0 END as needs_reply,
 				CASE WHEN cs.has_draft > 0 THEN 1 ELSE 0 END as has_draft
@@ -523,6 +526,14 @@ export class MailboxDO extends DurableObject<Env> {
 			.where(eq(schema.emails.id, id))
 			.run();
 
+		return this.getEmail(id);
+	}
+
+	/** Preserve draft identity so repeated saves do not create duplicate drafts. */
+	async updateDraft(id: string, data: Pick<EmailData, "subject" | "recipient" | "cc" | "bcc" | "body" | "in_reply_to" | "thread_id">) {
+		const existing = this.db.select().from(schema.emails).where(eq(schema.emails.id, id)).get();
+		if (!existing || existing.folder_id !== Folders.DRAFT) return null;
+		this.db.update(schema.emails).set({ ...data, date: new Date().toISOString() }).where(eq(schema.emails.id, id)).run();
 		return this.getEmail(id);
 	}
 
@@ -851,6 +862,7 @@ export class MailboxDO extends DurableObject<Env> {
 				subject: email.subject,
 				sender: email.sender,
 				recipient: email.recipient,
+				envelope_recipient: email.envelope_recipient ?? null,
 				cc: email.cc ?? null,
 				bcc: email.bcc ?? null,
 				date: email.date,

@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 //     https://opensource.org/licenses/Apache-2.0
 
+import type { AIConfigInput, AIConfigView } from "shared/ai-config";
 import type { Email, Folder, Mailbox } from "~/types";
 
 const REQUEST_TIMEOUT_MS = 30_000;
@@ -21,9 +22,10 @@ export class ApiError extends Error {
 async function request<T>(
 	url: string,
 	options: RequestInit = {},
+	timeoutMs = REQUEST_TIMEOUT_MS,
 ): Promise<T> {
 	const controller = new AbortController();
-	const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+	const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
 	// Combine caller signal (e.g. TanStack Query abort) with our timeout signal
 	const signal = options.signal
@@ -92,12 +94,52 @@ interface EmailListResponse {
 	totalCount: number;
 }
 
+export interface SetupStep {
+	id: string;
+	label: string;
+	status: "pending" | "running" | "done" | "error";
+	message?: string;
+}
+
+export interface SetupStatus {
+	completed: boolean;
+	domains: string[];
+	domainConfigs: { domain: string; sendProvider: string; routingConfigured: boolean; resendVerified: boolean; hasApiKey: boolean; configuredAt?: string }[];
+	sendProvider?: string;
+	routingConfigured: boolean;
+	resendVerified: boolean;
+	steps: SetupStep[];
+}
+
+export interface ValidateSetupResult {
+	valid: boolean;
+	cloudflare: { ok: boolean; message?: string };
+	resend: { ok: boolean; message?: string };
+	zones?: { id: string; name: string }[];
+}
+
+export interface RunSetupResult {
+	success: boolean;
+	steps: SetupStep[];
+	error?: string;
+}
+
 // ---------- API client ----------
 
 const api = {
 	// Config
 	getConfig: () =>
-		get<{ domains: string[]; emailAddresses: string[] }>("/api/v1/config"),
+		get<{ domains: string[]; emailAddresses: string[]; setupCompleted?: boolean }>("/api/v1/config"),
+
+	// Setup
+	getSetupStatus: () => get<SetupStatus>("/api/v1/setup/status"),
+	validateSetup: (params: { cloudflareToken: string; resendApiKey: string; domain?: string }) =>
+		post<ValidateSetupResult>("/api/v1/setup/validate", params),
+	runSetup: (params: { cloudflareToken: string; resendApiKey: string; domain: string; reconfigure?: boolean }) =>
+		request<RunSetupResult>("/api/v1/setup/run", { method: "POST", body: JSON.stringify(params) }, 120_000).catch(error => {
+			if (error instanceof ApiError && error.status === 422 && error.body.success === false) return error.body as unknown as RunSetupResult;
+			throw error;
+		}),
 
 	// Mailboxes
 	listMailboxes: () => get<Mailbox[]>("/api/v1/mailboxes"),
@@ -110,6 +152,11 @@ const api = {
 	deleteMailbox: (mailboxId: string) =>
 		del<void>(`/api/v1/mailboxes/${mailboxId}`),
 
+	// Per-mailbox AI configuration (API keys are write-only).
+	getAIConfig: (mailboxId: string) => get<AIConfigView>(`/api/v1/mailboxes/${encodeURIComponent(mailboxId)}/ai-config`),
+	saveAIConfig: (mailboxId: string, input: AIConfigInput) => put<AIConfigView>(`/api/v1/mailboxes/${encodeURIComponent(mailboxId)}/ai-config`, input),
+	testAIConfig: (mailboxId: string, input: AIConfigInput) => post<{ success: boolean; durationMs: number }>(`/api/v1/mailboxes/${encodeURIComponent(mailboxId)}/ai-config/test`, input),
+
 	// Emails
 	listEmails: (mailboxId: string, params: Record<string, string>, opts?: { signal?: AbortSignal }) =>
 		get<EmailListResponse | Email[]>(`/api/v1/mailboxes/${mailboxId}/emails`, { params, signal: opts?.signal }),
@@ -121,6 +168,16 @@ const api = {
 		put<Email>(`/api/v1/mailboxes/${mailboxId}/emails/${id}`, data),
 	deleteEmail: (mailboxId: string, id: string) =>
 		del<void>(`/api/v1/mailboxes/${mailboxId}/emails/${id}`),
+	listUnconfiguredEmails: (params: Record<string, string>, opts?: { signal?: AbortSignal }) =>
+		get<EmailListResponse>("/api/v1/unconfigured-emails", { params, signal: opts?.signal }),
+	getUnconfiguredEmail: (id: string, opts?: { signal?: AbortSignal }) =>
+		get<Email>(`/api/v1/unconfigured-emails/${id}`, { signal: opts?.signal }),
+	updateUnconfiguredEmail: (id: string, data: unknown) =>
+		put<Email>(`/api/v1/unconfigured-emails/${id}`, data),
+	deleteUnconfiguredEmail: (id: string) =>
+		del<void>(`/api/v1/unconfigured-emails/${id}`),
+	getUnconfiguredAttachmentUrl: (emailId: string, attachmentId: string) =>
+		`/api/v1/unconfigured-emails/${emailId}/attachments/${attachmentId}`,
 	moveEmail: (mailboxId: string, id: string, folderId: string) =>
 		post<void>(`/api/v1/mailboxes/${mailboxId}/emails/${id}/move`, { folderId }),
 	getThread: (mailboxId: string, threadId: string, opts?: { signal?: AbortSignal }) =>
@@ -141,7 +198,7 @@ const api = {
 			thread_id?: string;
 			draft_id?: string;
 		},
-	) => post<{ draft_id: string }>(`/api/v1/mailboxes/${mailboxId}/drafts`, draft),
+	) => post<{ id: string; status: "draft" }>(`/api/v1/mailboxes/${mailboxId}/drafts`, draft),
 	replyToEmail: (mailboxId: string, emailId: string, email: unknown) =>
 		post<void>(`/api/v1/mailboxes/${mailboxId}/emails/${emailId}/reply`, email),
 	forwardEmail: (mailboxId: string, emailId: string, email: unknown) =>

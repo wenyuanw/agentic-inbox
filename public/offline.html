@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en" data-page="agentic-inbox-offline">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f6f8fc"><title>Offline — Agentic Inbox</title>
+<style>
+*{box-sizing:border-box}body{margin:0;min-height:100dvh;display:grid;place-items:center;padding:24px;background:#f6f8fc;color:#202124;font:16px Arial,sans-serif}main{width:100%;max-width:440px;padding:40px 28px;border-radius:28px;background:#fff;text-align:center}svg{width:72px;height:72px}h1{font-size:26px;font-weight:400}p{color:#5f6368;line-height:1.65}button{margin-top:16px;border:0;border-radius:24px;padding:12px 24px;background:#0b57d0;color:white;font:inherit;cursor:pointer}button:focus-visible{outline:2px solid #0b57d0;outline-offset:3px}@media(prefers-color-scheme:dark){body{background:#111318;color:#e3e3e3}main{background:#1b1c20}p{color:#aeb4bd}}
+</style>
+</head>
+<body><main>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" aria-hidden="true"><path fill="#F96328" d="M11 30a10 10 0 0 1 13-9.5A15 15 0 0 1 53 27v3H11Z"/><path fill="#FFAA24" d="M47 24h2a12 12 0 0 1 12 12v9a7 7 0 0 1-7 7H43V30a6 6 0 0 1 4-6Z"/><rect x="3" y="28" width="51" height="24" rx="7" fill="#F96328"/><path d="m10 33 15.8 11a5 5 0 0 0 5.7 0L47 33" stroke="#FFF" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+<h1 id="title">You're offline</h1><p id="description">Reconnect to read and send email. Your mailbox is available when you're back online.</p><button id="retry" type="button">Try again</button>
+</main><script>
+let lang;try{lang=localStorage.getItem('agentic-inbox-language')}catch{}
+if(lang==='zh'||(!lang&&navigator.language.toLowerCase().startsWith('zh'))){document.documentElement.lang='zh-CN';document.title='离线 — Agentic Inbox';document.getElementById('title').textContent='当前处于离线状态';document.getElementById('description').textContent='连接网络后即可查看和发送邮件，请恢复网络后重试。';document.getElementById('retry').textContent='重试';}
+document.getElementById('retry').addEventListener('click',()=>location.reload());
+</script></body></html>

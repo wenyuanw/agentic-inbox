@@ -2,11 +2,16 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 //     https://opensource.org/licenses/Apache-2.0
 
+import { aiConfigRoutes } from "./routes/ai-config";
+import { aiConfigStorageKey } from "./lib/ai-config";
+import { normalizeDomain } from "./lib/domain-config";
 import { type Context, Hono } from "hono";
 import { cors } from "hono/cors";
 import PostalMime from "postal-mime";
 import { z } from "zod";
-import { sendEmail } from "./email-sender";
+import { dispatchEmail } from "./email-sender";
+import { getEffectiveDomains, getEffectiveEmailAddresses } from "./lib/setup-config";
+import { getSetupStatus, runSetup, validateCredentials } from "./lib/setup-service";
 import { storeAttachments, type StoredAttachment } from "./lib/attachments";
 import {
 	validateSender,
@@ -22,6 +27,12 @@ import type { Env } from "./types";
 import { requireMailbox, type MailboxContext } from "./lib/mailbox";
 
 type AppContext = Context<MailboxContext>;
+
+const UNCONFIGURED_MAILBOX_ID = "__unconfigured_mail__";
+
+function getUnconfiguredMailbox(env: Env) {
+	return env.MAILBOX.get(env.MAILBOX.idFromName(UNCONFIGURED_MAILBOX_ID)) as any;
+}
 
 // -- Request body schemas (kept for validation) ---------------------
 
@@ -83,13 +94,106 @@ app.use("/api/*", cors({
 }));
 app.use("/api/v1/mailboxes/:mailboxId/*", requireMailbox);
 
+app.route("/api/v1/mailboxes/:mailboxId/ai-config", aiConfigRoutes);
+
 // -- Config ---------------------------------------------------------
 
-app.get("/api/v1/config", (c) => {
-	const domainsRaw = c.env.DOMAINS || "";
-	const domains = domainsRaw.split(",").map((d) => d.trim()).filter(Boolean);
-	const emailAddresses = c.env.EMAIL_ADDRESSES ?? [];
-	return c.json({ domains, emailAddresses });
+app.get("/api/v1/config", async (c) => {
+	const domains = await getEffectiveDomains(c.env);
+	const emailAddresses = await getEffectiveEmailAddresses(c.env);
+	const setupStatus = await getSetupStatus(c.env);
+	return c.json({ domains, emailAddresses, setupCompleted: setupStatus.completed });
+});
+
+// -- Unconfigured incoming mail -------------------------------------
+
+app.get("/api/v1/unconfigured-emails", async (c) => {
+	const page = Math.max(1, intQuery(c, "page") ?? 1);
+	const limit = Math.min(100, Math.max(1, intQuery(c, "limit") ?? 25));
+	const mailbox = getUnconfiguredMailbox(c.env);
+	const emails = await mailbox.getEmails({ folder: Folders.INBOX, page, limit });
+	const totalCount = await mailbox.countEmails({ folder: Folders.INBOX });
+	return c.json({ emails, totalCount });
+});
+
+app.get("/api/v1/unconfigured-emails/:emailId", async (c) => {
+	const email = await getUnconfiguredMailbox(c.env).getEmail(c.req.param("emailId")!);
+	if (!email) return c.json({ error: "Email not found" }, 404);
+	return c.json(email);
+});
+
+app.put("/api/v1/unconfigured-emails/:emailId", async (c) => {
+	const { read, starred } = (await c.req.json()) as {
+		read?: boolean;
+		starred?: boolean;
+	};
+	const email = await getUnconfiguredMailbox(c.env).updateEmail(
+		c.req.param("emailId")!,
+		{ read, starred },
+	);
+	return email ? c.json(email) : c.json({ error: "Email not found" }, 404);
+});
+
+app.delete("/api/v1/unconfigured-emails/:emailId", async (c) => {
+	const emailId = c.req.param("emailId")!;
+	const attachments = await getUnconfiguredMailbox(c.env).deleteEmail(emailId);
+	if (attachments === null) return c.json({ error: "Email not found" }, 404);
+	if (attachments.length > 0) {
+		await c.env.BUCKET.delete(
+			attachments.map((attachment: any) =>
+				`attachments/${emailId}/${attachment.id}/${attachment.filename}`,
+			),
+		);
+	}
+	return c.body(null, 204);
+});
+
+app.get(
+	"/api/v1/unconfigured-emails/:emailId/attachments/:attachmentId",
+	async (c) => {
+		const { emailId, attachmentId } = c.req.param();
+		const attachment = await getUnconfiguredMailbox(c.env).getAttachment(attachmentId);
+		if (!attachment || attachment.email_id !== emailId)
+			return c.json({ error: "Attachment not found" }, 404);
+		const object = await c.env.BUCKET.get(
+			`attachments/${emailId}/${attachmentId}/${attachment.filename}`,
+		);
+		if (!object) return c.json({ error: "Attachment file not found" }, 404);
+		const filename = attachment.filename.replace(/[\x00-\x1f"\\]/g, "_");
+		return new Response(object.body, {
+			headers: {
+				"Content-Type": attachment.mimetype,
+				"Content-Disposition": `attachment; filename="${filename}"; filename*=UTF-8''${encodeURIComponent(attachment.filename)}`,
+			},
+		});
+	},
+);
+
+// -- Setup wizard ---------------------------------------------------
+
+app.get("/api/v1/setup/status", async (c) => {
+	return c.json(await getSetupStatus(c.env));
+});
+
+const SetupInput = z.object({
+	cloudflareToken: z.string().trim().min(1).max(4096),
+	resendApiKey: z.string().trim().min(1).max(4096),
+	domain: z.string().trim().min(1).max(253),
+	reconfigure: z.boolean().optional(),
+});
+app.post("/api/v1/setup/validate", async (c) => {
+	const parsed = SetupInput.safeParse(await c.req.json().catch(() => null));
+	if (!parsed.success) return c.json({ error: "Please fill in all fields" }, 400);
+	const { cloudflareToken, resendApiKey, domain } = parsed.data;
+	try { normalizeDomain(domain); } catch { return c.json({ error: "Enter a valid domain name without a URL or email address." }, 400); }
+	return c.json(await validateCredentials(cloudflareToken, resendApiKey, domain.toLowerCase()));
+});
+app.post("/api/v1/setup/run", async (c) => {
+	const parsed = SetupInput.safeParse(await c.req.json().catch(() => null));
+	if (!parsed.success) return c.json({ error: "Please fill in all fields" }, 400);
+	const workerName = c.env.WORKER_NAME || "agentic-inbox";
+	const result = await runSetup(c.env, { ...parsed.data, workerName });
+	return c.json(result, result.success ? 200 : 422);
 });
 
 // -- Mailboxes ------------------------------------------------------
@@ -106,6 +210,8 @@ app.post("/api/v1/mailboxes", async (c) => {
 	if (allowedAddresses.length > 0 && !allowedAddresses.map((a) => a.toLowerCase()).includes(email)) {
 		return c.json({ error: "Mailbox creation is restricted to configured EMAIL_ADDRESSES" }, 403);
 	}
+	const configuredDomains = await getEffectiveDomains(c.env);
+	if (!configuredDomains.includes(email.split("@")[1])) return c.json({ error: "Configure this domain before creating its mailboxes." }, 403);
 	const key = `mailboxes/${email}.json`;
 	if (await c.env.BUCKET.head(key)) return c.json({ error: "Mailbox already exists" }, 409);
 	const defaultSettings = { fromName: name, forwarding: { enabled: false, email: "" }, signature: { enabled: false, text: "" }, autoReply: { enabled: false, subject: "", message: "" } };
@@ -136,6 +242,7 @@ app.delete("/api/v1/mailboxes/:mailboxId", async (c) => {
 	const mailboxId = c.req.param("mailboxId")!;
 	const key = `mailboxes/${mailboxId}.json`;
 	if (!(await c.env.BUCKET.head(key))) return c.json({ error: "Not found" }, 404);
+	await c.env.BUCKET.delete(aiConfigStorageKey(mailboxId));
 	await c.env.BUCKET.delete(key); // TODO: also delete DO data and R2 attachment blobs
 	return c.body(null, 204);
 });
@@ -202,7 +309,7 @@ app.post("/api/v1/mailboxes/:mailboxId/emails", async (c: AppContext) => {
 	}, attachmentData);
 
 	c.executionCtx.waitUntil(
-		sendEmail(c.env.EMAIL, {
+		dispatchEmail(c.env, {
 			to, cc, bcc, from, subject, html, text,
 			attachments: attachments?.map((att) => ({ content: att.content, filename: att.filename, type: att.type, disposition: att.disposition || "attachment", contentId: att.contentId })),
 			...(in_reply_to ? { headers: buildThreadingHeaders(in_reply_to, references || []) } : {}),
@@ -215,7 +322,15 @@ app.post("/api/v1/mailboxes/:mailboxId/drafts", async (c: AppContext) => {
 	const mailboxId = c.req.param("mailboxId")!;
 	const { to, cc, bcc, subject, body, in_reply_to, thread_id, draft_id } = DraftBody.parse(await c.req.json());
 	const stub = c.var.mailboxStub;
-	if (draft_id) await stub.deleteEmail(draft_id); // not atomic — create-then-delete would be safer
+	if (draft_id) {
+		const draft = await stub.updateDraft(draft_id, {
+			subject: subject || "", recipient: (to || "").toLowerCase(),
+			cc: cc?.toLowerCase() || null, bcc: bcc?.toLowerCase() || null, body,
+			in_reply_to: in_reply_to || null, thread_id: thread_id || in_reply_to || draft_id,
+		});
+		if (!draft) return c.json({ error: "Draft not found" }, 404);
+		return c.json({ id: draft.id, status: "draft", subject: draft.subject, recipient: draft.recipient, date: draft.date });
+	}
 	const messageId = crypto.randomUUID();
 	const now = new Date().toISOString();
 	await stub.createEmail(Folders.DRAFT, {
@@ -345,27 +460,36 @@ async function streamToArrayBuffer(stream: ReadableStream, streamSize: number) {
 	return result;
 }
 
-async function receiveEmail(event: { raw: ReadableStream; rawSize: number }, env: Env, ctx: ExecutionContext) {
+async function receiveEmail(event: { raw: ReadableStream; rawSize: number; to?: string }, env: Env, ctx: ExecutionContext) {
 	const rawEmail = await streamToArrayBuffer(event.raw, event.rawSize);
 	const parsedEmail = await new PostalMime().parse(rawEmail);
 
-	if (!parsedEmail.to?.length || !parsedEmail.to[0].address) throw new Error("received email with empty to");
+	if (!event.to && (!parsedEmail.to?.length || !parsedEmail.to[0].address)) throw new Error("received email with empty to");
 
 	const allowedAddresses = ((env.EMAIL_ADDRESSES ?? []) as string[]).map((a) => a.toLowerCase());
-	const allRecipients = parsedEmail.to.map((t) => t.address?.toLowerCase()).filter(Boolean) as string[];
+	const allRecipients = (parsedEmail.to || []).map((t) => t.address?.toLowerCase()).filter(Boolean) as string[];
 	const ccRecipients = (parsedEmail.cc || []).map((e) => e.address?.toLowerCase()).filter(Boolean) as string[];
 	const bccRecipients = (parsedEmail.bcc || []).map((e) => e.address?.toLowerCase()).filter(Boolean) as string[];
 
-	let mailboxId: string | undefined;
-	if (allowedAddresses.length > 0) {
-		mailboxId = allRecipients.find((addr) => allowedAddresses.includes(addr));
-		if (!mailboxId) { console.log(`Ignoring email: no recipient matches EMAIL_ADDRESSES.`); return; }
-	} else { mailboxId = allRecipients[0]; }
-	if (!mailboxId) throw new Error("received email with no valid recipient address");
+	const envelopeRecipient =
+		event.to?.toLowerCase() ??
+		(allowedAddresses.length > 0
+			? allRecipients.find((address) => allowedAddresses.includes(address)) ??
+				allRecipients[0]
+			: allRecipients[0]);
+	if (!envelopeRecipient) throw new Error("received email with no valid recipient address");
+	const addressAllowed =
+		allowedAddresses.length === 0 || allowedAddresses.includes(envelopeRecipient);
+	const mailboxExists = addressAllowed
+		? await env.BUCKET.head(`mailboxes/${envelopeRecipient}.json`)
+		: null;
+	const isUnconfigured = !addressAllowed || !mailboxExists;
+	const mailboxId = isUnconfigured ? UNCONFIGURED_MAILBOX_ID : envelopeRecipient;
+	if (isUnconfigured) {
+		console.log(`Saving email for unconfigured recipient ${envelopeRecipient}.`);
+	}
 
 	const messageId = crypto.randomUUID();
-	if (!(await env.BUCKET.head(`mailboxes/${mailboxId}.json`))) { console.log(`Ignoring email for ${mailboxId}: mailbox does not exist`); return; }
-
 	const stub = env.MAILBOX.get(env.MAILBOX.idFromName(mailboxId));
 
 	const attachmentData: StoredAttachment[] = [];
@@ -385,16 +509,18 @@ async function receiveEmail(event: { raw: ReadableStream; rawSize: number }, env
 	const emailReferences = parsedEmail.references ? parsedEmail.references.split(/\s+/).filter(Boolean).map(extractMsgId) : [];
 	let threadId = emailReferences[0] || inReplyTo || messageId;
 
-	if (!inReplyTo && emailReferences.length === 0) {
+	if (!isUnconfigured && !inReplyTo && emailReferences.length === 0) {
 		const subjectThread = await (stub as any).findThreadBySubject(parsedEmail.subject || "", parsedEmail.from?.address || undefined);
 		if (subjectThread) threadId = subjectThread;
 	}
+	if (isUnconfigured) threadId = messageId;
 
 	const originalMessageId = parsedEmail.messageId ? extractMsgId(parsedEmail.messageId) : null;
 
 	await stub.createEmail(Folders.INBOX, {
 		id: messageId, subject: parsedEmail.subject || "",
 		sender: (parsedEmail.from?.address || "").toLowerCase(), recipient: allRecipients.join(", "),
+		envelope_recipient: envelopeRecipient,
 		cc: ccRecipients.join(", ") || null, bcc: bccRecipients.join(", ") || null,
 		date: new Date().toISOString(), // uses receive time, not the email's Date header
 		body: parsedEmail.html || parsedEmail.text || "",
@@ -402,11 +528,13 @@ async function receiveEmail(event: { raw: ReadableStream; rawSize: number }, env
 		thread_id: threadId, message_id: originalMessageId, raw_headers: JSON.stringify(parsedEmail.headers),
 	}, attachmentData);
 
-	const agentStub = env.EMAIL_AGENT.get(env.EMAIL_AGENT.idFromName(mailboxId));
-	ctx.waitUntil(agentStub.fetch(new Request("https://agents/onNewEmail", {
-		method: "POST", headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({ mailboxId, emailId: messageId, sender: (parsedEmail.from?.address || "").toLowerCase(), subject: parsedEmail.subject || "", threadId }),
-	})).catch((e) => console.error("Auto-draft trigger failed:", (e as Error).message)));
+	if (!isUnconfigured) {
+		const agentStub = env.EMAIL_AGENT.get(env.EMAIL_AGENT.idFromName(mailboxId));
+		ctx.waitUntil(agentStub.fetch(new Request("https://agents/onNewEmail", {
+			method: "POST", headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ mailboxId, emailId: messageId, sender: (parsedEmail.from?.address || "").toLowerCase(), subject: parsedEmail.subject || "", threadId }),
+		})).catch((e) => console.error("Auto-draft trigger failed:", (e as Error).message)));
+	}
 }
 
 export { app, receiveEmail };

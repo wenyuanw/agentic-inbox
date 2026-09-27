@@ -2,8 +2,10 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 //     https://opensource.org/licenses/Apache-2.0
 
+import { useI18n } from "~/hooks/useI18n";
 import DOMPurify from "dompurify";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTheme } from "~/components/ThemeProvider";
 
 interface EmailIframeProps {
 	body: string;
@@ -28,6 +30,9 @@ interface EmailIframeProps {
  *   iframe as a defense-in-depth layer.
  */
 export default function EmailIframe({ body, autoSize }: EmailIframeProps) {
+	const { t } = useI18n();
+
+	const { colorMode } = useTheme();
 	const iframeRef = useRef<HTMLIFrameElement>(null);
 	const [height, setHeight] = useState(autoSize ? 100 : 0);
 
@@ -57,7 +62,7 @@ export default function EmailIframe({ body, autoSize }: EmailIframeProps) {
 
 	useEffect(() => {
 		const iframe = iframeRef.current;
-		if (!iframe || !body) return;
+		if (!iframe) return;
 
 		const cleanBody = DOMPurify.sanitize(body, {
 			USE_PROFILES: { html: true },
@@ -67,6 +72,40 @@ export default function EmailIframe({ body, autoSize }: EmailIframeProps) {
 		});
 
 		const padding = autoSize ? "0" : "24px";
+		// Preserve authored email palettes (newsletters, colored text, etc.).
+		// Unstyled messages follow the inbox; images are never inverted.
+		// Template contents stay inert and cannot load message resources here.
+		const messageTemplate = document.createElement("template");
+		messageTemplate.innerHTML = cleanBody;
+		const messageDocument = messageTemplate.content;
+		const hasAuthoredColors =
+			!!messageDocument.querySelector("[bgcolor], [color]") ||
+			Array.from(messageDocument.querySelectorAll<HTMLElement>("[style]")).some(
+				(element) =>
+					element.style.color ||
+					element.style.background ||
+					element.style.backgroundColor ||
+					element.style.backgroundImage,
+			);
+		const dark = colorMode === "dark" && !hasAuthoredColors;
+		const themeStyle = getComputedStyle(document.documentElement);
+		const colors = dark
+			? {
+					background: themeStyle.getPropertyValue("--mail-surface"),
+					text: themeStyle.getPropertyValue("--mail-text"),
+					link: themeStyle.getPropertyValue("--mail-blue"),
+					line: themeStyle.getPropertyValue("--mail-line-strong"),
+					muted: themeStyle.getPropertyValue("--mail-muted"),
+					code: themeStyle.getPropertyValue("--mail-fill"),
+				}
+			: {
+					background: "#ffffff",
+					text: "#1a1a1a",
+					link: "#2563eb",
+					line: "#d1d5db",
+					muted: "#6b7280",
+					code: "#f3f4f6",
+				};
 
 		// Height-reporting script: sends body.scrollHeight to the parent.
 		// Runs inside the opaque-origin sandbox so it has zero access to
@@ -74,9 +113,12 @@ export default function EmailIframe({ body, autoSize }: EmailIframeProps) {
 		const heightScript = autoSize
 			? `<script>
 				function reportHeight() {
-					var h = document.body.scrollHeight;
+					var h = Math.max(1, Math.ceil(document.body.getBoundingClientRect().height));
 					if (h > 0) parent.postMessage({ __emailIframeHeight: true, height: h }, "*");
 				}
+				new ResizeObserver(reportHeight).observe(document.body);
+				window.addEventListener("resize", reportHeight);
+				document.addEventListener("load", reportHeight, true);
 				reportHeight();
 				setTimeout(reportHeight, 50);
 				setTimeout(reportHeight, 150);
@@ -95,15 +137,15 @@ export default function EmailIframe({ body, autoSize }: EmailIframeProps) {
 <style>
 * { box-sizing: border-box; }
 html {
-	background: #ffffff;
-	color-scheme: light;
+	background: ${colors.background};
+	color-scheme: ${dark ? "dark" : "light"};
 }
 body {
 	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 	font-size: 14px;
 	line-height: 1.6;
-	color: #1a1a1a;
-	background: #ffffff;
+	color: ${colors.text};
+	background: ${colors.background};
 	padding: ${padding};
 	margin: 0;
 	word-wrap: break-word;
@@ -113,16 +155,16 @@ body {
 [style*="position: fixed"], [style*="position:fixed"], [style*="position: absolute"], [style*="position:absolute"] {
 	position: relative !important;
 }
-a { color: #2563eb; }
+a { color: ${colors.link}; }
 img { max-width: 100%; height: auto; }
 blockquote {
-	border-left: 3px solid #d1d5db;
+	border-left: 3px solid ${colors.line};
 	padding-left: 1em;
 	margin-left: 0;
-	color: #6b7280;
+	color: ${colors.muted};
 }
 pre {
-	background: #f3f4f6;
+	background: ${colors.code};
 	padding: 12px;
 	border-radius: 6px;
 	overflow-x: auto;
@@ -137,7 +179,7 @@ ul, ol { padding-left: 20px; margin: 4px 0; }
 </head>
 <body>${cleanBody}${heightScript}</body>
 </html>`;
-	}, [body, autoSize]);
+	}, [body, autoSize, colorMode]);
 
 	return (
 		<iframe
@@ -145,7 +187,7 @@ ul, ol { padding-left: 20px; margin: 4px 0; }
 			className="block w-full border-0"
 			style={autoSize ? { height: `${height}px` } : { height: "100%" }}
 			sandbox="allow-scripts allow-popups allow-top-navigation-by-user-activation"
-			title="Email content"
+			title={t("Email content")}
 		/>
 	);
 }
