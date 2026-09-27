@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 //     https://opensource.org/licenses/Apache-2.0
 
+import MailBrand from "~/components/MailBrand";
 import LanguageSelect from "~/components/LanguageSelect";
 import { useI18n } from "~/hooks/useI18n";
 import {
@@ -12,9 +13,9 @@ import {
 	useKumoToastManager,
 } from "@cloudflare/kumo";
 import {
+	ArrowSquareOutIcon,
 	CheckCircleIcon,
 	CircleIcon,
-	EnvelopeIcon,
 	GearIcon,
 	WarningCircleIcon,
 	XCircleIcon,
@@ -27,6 +28,20 @@ import type { SetupStep } from "~/services/api";
 export function meta() {
 	return [{ title: "Setup — Agentic Inbox" }];
 }
+
+// Template format: Cloudflare Fundamentals /api/how-to/account-owned-token-template/.
+// Email Routing uses the singular key, as in LeoColomb/dispoflare's token template.
+const CLOUDFLARE_TOKEN_URL = `https://dash.cloudflare.com/profile/api-tokens?${new URLSearchParams({
+	permissionGroupKeys: JSON.stringify([
+		{ key: "zone", type: "read" },
+		{ key: "dns", type: "edit" },
+		{ key: "zone_settings", type: "edit" },
+		{ key: "email_routing_rule", type: "edit" },
+	]),
+	accountId: "*",
+	zoneId: "all",
+	name: "Agentic Inbox Setup",
+})}`;
 
 type WizardStep = "credentials" | "configure" | "complete";
 
@@ -141,78 +156,47 @@ export default function SetupRoute() {
 
 	return (
 		<div className="mail-setup-page min-h-screen bg-kumo-recessed">
-			<div className="mx-auto max-w-lg px-4 py-10 md:py-16">
-				<div className="flex justify-end mb-6">
-					<LanguageSelect />
-				</div>
-				<div className="text-center mb-8">
-					<div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-kumo-base border border-kumo-line mb-4">
-						<EnvelopeIcon size={28} className="text-kumo-default" />
-					</div>
-					<h1 className="text-2xl font-normal text-kumo-default">
-						{t("Set up your domain email")}
-					</h1>
-					<p className="text-sm text-kumo-subtle mt-2 max-w-sm mx-auto">
-						{t(
-							"Enter your Cloudflare and Resend API keys to configure incoming email routing and verify your sending domain automatically.",
-						)}
-					</p>
-				</div>
-
-				{/* Progress indicator */}
-				<div className="flex items-center justify-center gap-2 mb-8">
-					{(["credentials", "configure", "complete"] as WizardStep[]).map(
-						(step, i) => (
-							<div key={step} className="flex items-center gap-2">
-								<div
-									className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold ${
-										wizardStep === step
-											? "bg-kumo-brand text-kumo-inverse"
-											: ["credentials", "configure", "complete"].indexOf(
-														wizardStep,
-												  ) > i
-												? "bg-green-100 text-green-700"
-												: "bg-kumo-fill text-kumo-subtle"
-									}`}
-								>
-									{i + 1}
-								</div>
-								{i < 2 && <div className="w-8 h-px bg-kumo-line" />}
-							</div>
-						),
-					)}
-				</div>
-
-				<div className="mail-setup-card rounded-xl border border-kumo-line bg-kumo-base p-6">
+			<header className="mail-setup-header">
+				<MailBrand />
+				<LanguageSelect />
+			</header>
+			<main className="mail-setup-layout">
+				<aside className="mail-setup-intro">
+					<h1>{t("Set up your domain email")}</h1>
+					<p>{t("Connect your domain to send and receive email.")}</p>
+					<ol className="mail-setup-steps" aria-label={t("Set up your domain email")}>
+						{(["credentials", "configure", "complete"] as WizardStep[]).map((step, i) => {
+							const currentIndex = ["credentials", "configure", "complete"].indexOf(wizardStep);
+							return <li key={step} className={wizardStep === step ? "is-current" : currentIndex > i ? "is-done" : ""} aria-current={wizardStep === step ? "step" : undefined}>
+								<span className="mail-setup-step-number">{currentIndex > i ? <CheckCircleIcon size={20} /> : i + 1}</span>
+								<span>{t(["API credentials", "Automatic configuration", "Setup complete"][i])}</span>
+							</li>;
+						})}
+					</ol>
+				</aside>
+				<div className="mail-setup-card">
 					{wizardStep === "credentials" && (
 						<form onSubmit={handleValidate} className="space-y-5">
 							<div>
 								<h2 className="text-base font-semibold text-kumo-default mb-1">
 									{t("API credentials")}
 								</h2>
-								<p className="text-sm text-kumo-subtle mb-4">
-									{t(
-										"The Cloudflare token is used only for this setup and is not saved. The Resend key is stored encrypted for sending emails.",
-									)}
-								</p>
 							</div>
 
 							<Input
 								label={t("Cloudflare API Token")}
 								type="password"
-								placeholder={t(
-									"Create in Cloudflare Dashboard → My Profile → API Tokens",
-								)}
+								placeholder={t("Paste your token")}
 								size="sm"
 								value={cfToken}
 								onChange={(e) => setCfToken(e.target.value)}
 								required
 							/>
-							<p className="text-xs text-kumo-subtle -mt-3">
-								{t(
-									"Required permissions: Zone DNS Edit, Email Routing Rules Edit",
-								)}
-							</p>
+							<div className="mail-setup-field-help">
+								<a href={CLOUDFLARE_TOKEN_URL} target="_blank" rel="noopener noreferrer">{t("Create Cloudflare Token")} <ArrowSquareOutIcon size={14} aria-hidden="true" /></a>
+								<span>{t("Select only your domain")}</span>
+								<details><summary>{t("Required permissions")}</summary><p>{t("Required permissions: Zone Read, DNS Edit, Zone Settings Edit, Email Routing Rules Edit")}</p><p>{t("Limit access to the domain you are configuring.")}</p></details>
+							</div>
 
 							<Input
 								label={t("Resend API Key")}
@@ -224,6 +208,11 @@ export default function SetupRoute() {
 								required
 							/>
 
+							<div className="mail-setup-field-help">
+								<a href="https://resend.com/api-keys" target="_blank" rel="noopener noreferrer">{t("Get Resend API Key")} <ArrowSquareOutIcon size={14} aria-hidden="true" /></a>
+								<span>{t("Choose Full Access")}</span>
+							</div>
+
 							<Input
 								label={t("Domain")}
 								placeholder="example.com"
@@ -232,9 +221,11 @@ export default function SetupRoute() {
 								onChange={(e) => setDomain(e.target.value)}
 								required
 							/>
-							<p className="text-xs text-kumo-subtle -mt-3">
-								{t("Your domain must be hosted on Cloudflare")}
-							</p>
+							<details className="mail-setup-notes">
+								<summary>{t("Setup notes")}</summary>
+								<p>{t("Your domain must be hosted on Cloudflare")}</p>
+								<p>{t("The Cloudflare token is used only for this setup and is not saved. The Resend key is saved in the mailbox service configuration for sending emails.")}</p>
+							</details>
 
 							{validationError && (
 								<Text variant="error" size="sm">
@@ -245,7 +236,7 @@ export default function SetupRoute() {
 							<Button
 								type="submit"
 								variant="primary"
-								className="w-full"
+								className="mail-setup-primary"
 								loading={validateSetup.isPending}
 							>
 								{t("Validate and continue")}
@@ -315,7 +306,7 @@ export default function SetupRoute() {
 								</div>
 							)}
 
-							<div className="flex gap-2">
+							<div className="mail-setup-actions">
 								<Button
 									variant="secondary"
 									className="flex-1"
@@ -357,7 +348,7 @@ export default function SetupRoute() {
 							</div>
 							<Button
 								variant="primary"
-								className="w-full"
+								className="mail-setup-primary"
 								onClick={() => navigate("/")}
 							>
 								{t("Create your first mailbox")}
@@ -366,10 +357,8 @@ export default function SetupRoute() {
 					)}
 				</div>
 
-				<p className="text-xs text-kumo-subtle text-center mt-6">
-					{t("Free domain email powered by Cloudflare Email Routing + Resend")}
-				</p>
-			</div>
+			</main>
+
 		</div>
 	);
 }

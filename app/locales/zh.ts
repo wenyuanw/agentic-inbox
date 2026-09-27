@@ -375,13 +375,24 @@ export const zh = {
 	"Set up your domain email": "配置域名邮箱",
 	"Enter your Cloudflare and Resend API keys to configure incoming email routing and verify your sending domain automatically.":
 		"填入 Cloudflare 和 Resend 的 API Key，自动完成收信路由与发信域名验证。",
+	"Connect your domain to send and receive email.": "连接你的域名，开始收发邮件。",
+	"Paste your token": "粘贴 Token",
+	"Get Cloudflare Token": "获取 Cloudflare Token",
+	"Create Cloudflare Token": "快捷创建 Cloudflare Token",
+	"Select only your domain": "创建时仅选择当前域名",
+	"Required permissions": "所需权限",
+	"Limit access to the domain you are configuring.": "仅授权当前配置的域名。",
+	"Get Resend API Key": "获取 Resend API Key",
+	"Choose Full Access": "选择 Full Access 权限",
+	"Setup notes": "配置说明",
 	"API credentials": "API 凭证",
-	"The Cloudflare token is used only for this setup and is not saved. The Resend key is stored encrypted for sending emails.":
-		"Cloudflare Token 仅用于本次配置，不会保存。Resend Key 会加密存储用于发信。",
+	"The Cloudflare token is used only for this setup and is not saved. The Resend key is saved in the mailbox service configuration for sending emails.":
+		"Cloudflare Token 仅用于本次配置，不会保存。Resend Key 将保存在邮箱服务配置中用于发信。",
 	"Create in Cloudflare Dashboard → My Profile → API Tokens":
 		"在 Cloudflare Dashboard → My Profile → API Tokens 创建",
-	"Required permissions: Zone DNS Edit, Email Routing Rules Edit":
-		"需要权限：Zone DNS Edit、Email Routing Rules Edit",
+	"Required permissions: Zone Read, DNS Edit, Zone Settings Edit, Email Routing Rules Edit":
+		"需要权限：Zone Read、DNS Edit、Zone Settings Edit、Email Routing Rules Edit",
+	"Use a Full Access Resend API key to configure and verify your domain.": "请使用 Full Access 权限的 Resend API Key，以配置和验证域名。",
 	"Your domain must be hosted on Cloudflare": "域名须已托管在 Cloudflare",
 	"Validate and continue": "验证并继续",
 	"Automatic configuration": "自动配置",
