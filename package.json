@@ -24,7 +24,9 @@
 		"dev": "react-router dev",
 		"preview": "npm run build && vite preview",
 		"typecheck": "npm run cf-typegen && react-router typegen && tsc -b",
-		"test:ai": "tsx --test tests/ai-*.test.ts"
+		"test:ai": "tsx --test tests/ai-*.test.ts",
+		"test:pwa": "node --test tests/pwa.test.mjs",
+		"test:domains": "tsx --test tests/domains.test.ts"
 	},
 	"dependencies": {
 		"@ai-sdk/anthropic": "^3.0.122",

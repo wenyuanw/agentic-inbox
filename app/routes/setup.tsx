@@ -1,3 +1,4 @@
+import { InstallAppButton } from "~/components/PWAProvider";
 // Copyright (c) 2026 Cloudflare, Inc.
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 //     https://opensource.org/licenses/Apache-2.0
@@ -20,8 +21,8 @@ import {
 	WarningCircleIcon,
 	XCircleIcon,
 } from "@phosphor-icons/react";
-import { type FormEvent, useEffect, useState } from "react";
-import { useNavigate } from "react-router";
+import { type FormEvent, useState } from "react";
+import { useNavigate, useSearchParams, Link } from "react-router";
 import { useRunSetup, useSetupStatus, useValidateSetup } from "~/queries/setup";
 import type { SetupStep } from "~/services/api";
 
@@ -74,6 +75,8 @@ export default function SetupRoute() {
 	const { t } = useI18n();
 
 	const navigate = useNavigate();
+	const [searchParams] = useSearchParams();
+	const reconfigure = searchParams.get("reconfigure") === "1";
 	const toastManager = useKumoToastManager();
 	const { data: setupStatus, isLoading: statusLoading } = useSetupStatus();
 	const validateSetup = useValidateSetup();
@@ -82,16 +85,10 @@ export default function SetupRoute() {
 	const [wizardStep, setWizardStep] = useState<WizardStep>("credentials");
 	const [cfToken, setCfToken] = useState("");
 	const [resendKey, setResendKey] = useState("");
-	const [domain, setDomain] = useState("");
+	const [domain, setDomain] = useState(searchParams.get("domain") || "");
 	const [validationError, setValidationError] = useState<string | null>(null);
 	const [configSteps, setConfigSteps] = useState<SetupStep[]>([]);
 	const [configError, setConfigError] = useState<string | null>(null);
-
-	useEffect(() => {
-		if (setupStatus?.completed) {
-			navigate("/", { replace: true });
-		}
-	}, [setupStatus?.completed, navigate]);
 
 	const handleValidate = async (e: FormEvent) => {
 		e.preventDefault();
@@ -131,6 +128,7 @@ export default function SetupRoute() {
 				cloudflareToken: cfToken.trim(),
 				resendApiKey: resendKey.trim(),
 				domain: domain.trim(),
+				reconfigure,
 			});
 			setConfigSteps(result.steps);
 			if (result.success) {
@@ -158,13 +156,14 @@ export default function SetupRoute() {
 		<div className="mail-setup-page min-h-screen bg-kumo-recessed">
 			<header className="mail-setup-header">
 				<MailBrand />
-				<LanguageSelect />
+				<div className="mail-setup-header-actions"><InstallAppButton /><LanguageSelect /></div>
 			</header>
 			<main className="mail-setup-layout">
 				<aside className="mail-setup-intro">
-					<h1>{t("Set up your domain email")}</h1>
+					<h1>{t(reconfigure ? "Reconfigure domain" : "Set up your domain email")}</h1>
 					<p>{t("Connect your domain to send and receive email.")}</p>
-					<ol className="mail-setup-steps" aria-label={t("Set up your domain email")}>
+					<Link className="mail-domain-back" to="/domains">{t("Manage domains")}{setupStatus?.domains.length ? ` (${setupStatus.domains.length})` : ""}</Link>
+					<ol className="mail-setup-steps" aria-label={t(reconfigure ? "Reconfigure domain" : "Set up your domain email")}>
 						{(["credentials", "configure", "complete"] as WizardStep[]).map((step, i) => {
 							const currentIndex = ["credentials", "configure", "complete"].indexOf(wizardStep);
 							return <li key={step} className={wizardStep === step ? "is-current" : currentIndex > i ? "is-done" : ""} aria-current={wizardStep === step ? "step" : undefined}>
@@ -218,13 +217,14 @@ export default function SetupRoute() {
 								placeholder="example.com"
 								size="sm"
 								value={domain}
+								readOnly={reconfigure}
 								onChange={(e) => setDomain(e.target.value)}
 								required
 							/>
 							<details className="mail-setup-notes">
 								<summary>{t("Setup notes")}</summary>
 								<p>{t("Your domain must be hosted on Cloudflare")}</p>
-								<p>{t("The Cloudflare token is used only for this setup and is not saved. The Resend key is saved in the mailbox service configuration for sending emails.")}</p>
+								<p>{t("The Cloudflare token is not saved. Each domain has its own encrypted Resend key.")}</p>
 							</details>
 
 							{validationError && (
@@ -351,7 +351,7 @@ export default function SetupRoute() {
 								className="mail-setup-primary"
 								onClick={() => navigate("/")}
 							>
-								{t("Create your first mailbox")}
+								{t("Go to mailboxes")}
 							</Button>
 						</div>
 					)}

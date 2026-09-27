@@ -44,7 +44,7 @@ async function cfRequest<T>(
 }
 
 export async function verifyCloudflareToken(token: string): Promise<{ id: string; status: string }> {
-	return cfRequest(token, "/user/tokens/verify", { method: "POST" });
+	return cfRequest(token, "/user/tokens/verify", { method: "GET" });
 }
 
 export async function getZoneByName(token: string, domain: string): Promise<{ id: string; name: string; status: string }> {
@@ -59,11 +59,12 @@ export async function getZoneByName(token: string, domain: string): Promise<{ id
 	return zone;
 }
 
-export async function enableEmailRouting(token: string, zoneId: string, domain: string): Promise<void> {
+export async function enableEmailRouting(token: string, zoneId: string): Promise<void> {
 	try {
+		// The zone ID identifies the apex domain. Sending it as `name` makes
+		// Cloudflare validate it as a subdomain and reject the apex itself.
 		await cfRequest(token, `/zones/${zoneId}/email/routing/dns`, {
 			method: "POST",
-			body: JSON.stringify({ name: domain }),
 		});
 	} catch (e) {
 		// Already enabled is fine

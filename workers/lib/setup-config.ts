@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 //     https://opensource.org/licenses/Apache-2.0
 
+import { listDomainConfigs } from "./domain-config";
 import type { Env } from "../types";
 
 export interface SetupConfig {
@@ -39,11 +40,9 @@ export function isSetupComplete(config: SetupConfig | null): boolean {
 }
 
 export async function getEffectiveDomains(env: Env): Promise<string[]> {
-	const setup = await getSetupConfig(env.BUCKET);
-	if (setup?.domains?.length) return setup.domains;
-
-	const domainsRaw = env.DOMAINS || "";
-	return domainsRaw.split(",").map((d) => d.trim()).filter(Boolean);
+	const configs = await listDomainConfigs(env);
+	const manual = (env.DOMAINS || "").split(",").map(d => d.trim().toLowerCase()).filter(Boolean);
+	return [...new Set([...configs.map(config => config.domain), ...manual.filter(d => d !== "example.com" || configs.length === 0)])];
 }
 
 export async function getEffectiveEmailAddresses(env: Env): Promise<string[]> {

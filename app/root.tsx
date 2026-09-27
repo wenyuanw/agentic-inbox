@@ -28,6 +28,7 @@ import {
 	ScrollRestoration,
 } from "react-router";
 import { ApiError } from "~/services/api";
+import PWAProvider from "~/components/PWAProvider";
 import { ThemeProvider } from "~/components/ThemeProvider";
 import { themeBootstrapScript } from "~/lib/theme";
 import { localeBootstrapScript } from "~/lib/i18n";
@@ -95,13 +96,18 @@ export function Layout({ children }: { children: React.ReactNode }) {
 				<meta charSet="UTF-8" />
 				<script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
 				<script dangerouslySetInnerHTML={{ __html: localeBootstrapScript }} />
-				<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+				<link rel="icon" type="image/svg+xml" href="/favicon.svg?v=cloud-envelope" />
 				<link
 					rel="icon"
 					type="image/x-icon"
-					href="/favicon.ico"
+					href="/favicon.ico?v=cloud-envelope"
 					sizes="48x48 32x32 16x16"
 				/>
+				<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+				<link rel="manifest" href="/site.webmanifest" />
+				<meta name="theme-color" content="#f6f8fc" media="(prefers-color-scheme: light)" />
+				<meta name="theme-color" content="#111318" media="(prefers-color-scheme: dark)" />
+				<meta name="apple-mobile-web-app-title" content="Agentic Inbox" />
 				<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 				<title>Agentic Inbox</title>
 				<Meta />
@@ -134,7 +140,7 @@ export default function App() {
 				<LinkProvider component={KumoLink}>
 					<TooltipProvider>
 						<Toasty>
-							<Outlet />
+							<PWAProvider><Outlet /></PWAProvider>
 						</Toasty>
 					</TooltipProvider>
 				</LinkProvider>

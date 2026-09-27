@@ -1,3 +1,4 @@
+import { InstallAppButton } from "~/components/PWAProvider";
 // Copyright (c) 2026 Cloudflare, Inc.
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 //     https://opensource.org/licenses/Apache-2.0
@@ -15,13 +16,13 @@ import {
 } from "@cloudflare/kumo";
 import {
 	ArrowRightIcon,
-	EnvelopeIcon,
 	PlusIcon,
 	TrashIcon,
 } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { Link as RouterLink, useNavigate } from "react-router";
+import MailLogo from "~/components/MailLogo";
 import MailBrand from "~/components/MailBrand";
 import MailIconButton from "~/components/MailIconButton";
 import api from "~/services/api";
@@ -180,7 +181,7 @@ export default function HomeRoute() {
 		<div className="mail-home-page">
 			<header className="mail-home-brand">
 				<MailBrand />
-				<LanguageSelect />
+				<div className="mail-setup-header-actions"><InstallAppButton /><LanguageSelect /></div>
 			</header>
 			<div className="mail-home-content">
 				<div className="mb-8">
@@ -203,6 +204,7 @@ export default function HomeRoute() {
 							</Button>
 						)}
 					</div>
+					<RouterLink className="mail-domain-back" to="/domains">{t("Manage domains")}</RouterLink>
 					{domains.length > 0 && (
 						<p className="text-sm text-kumo-subtle mt-1">
 							{t("Choose a mailbox to pick up where you left off.")}{" "}
@@ -255,11 +257,7 @@ export default function HomeRoute() {
 					<div className="rounded-xl border border-kumo-line bg-kumo-base py-16 px-6">
 						<div className="flex flex-col items-center text-center">
 							<div className="mb-4">
-								<EnvelopeIcon
-									size={48}
-									weight="thin"
-									className="text-kumo-subtle"
-								/>
+								<MailLogo size={64} />
 							</div>
 							<h3 className="text-base font-semibold text-kumo-default mb-1.5">
 								{t("No mailboxes yet")}

@@ -18,7 +18,7 @@ import {
 	verifyResendDomain,
 	type ResendDnsRecord,
 } from "./resend-api";
-import { getSetupConfig, isSetupComplete, saveSetupConfig, type SetupConfig } from "./setup-config";
+import { getDomainConfig, listDomainConfigs, domainConfigView, encryptResendKey, normalizeDomain, saveDomainConfig } from "./domain-config";
 import type { Env } from "../types";
 
 export interface SetupStep {
@@ -31,6 +31,7 @@ export interface SetupStep {
 export interface SetupStatus {
 	completed: boolean;
 	domains: string[];
+	domainConfigs: ReturnType<typeof domainConfigView>[];
 	sendProvider?: string;
 	routingConfigured: boolean;
 	resendVerified: boolean;
@@ -49,12 +50,13 @@ export interface RunSetupInput {
 	resendApiKey: string;
 	domain: string;
 	workerName: string;
+	reconfigure?: boolean;
 }
 
 export interface RunSetupResult {
 	success: boolean;
 	steps: SetupStep[];
-	config?: SetupConfig;
+	config?: ReturnType<typeof domainConfigView>;
 	error?: string;
 }
 
@@ -104,31 +106,21 @@ async function waitForResendVerification(
 }
 
 export async function getSetupStatus(env: Env): Promise<SetupStatus> {
-	const config = await getSetupConfig(env.BUCKET);
-	const completed = isSetupComplete(config);
-
-	const steps: SetupStep[] = [
-		{
-			id: "routing",
-			label: "Cloudflare Email Routing",
-			status: config?.routingConfiguredAt ? "done" : "pending",
-			message: config?.routingConfiguredAt ? "已配置 catch-all 转发到 Worker" : undefined,
-		},
-		{
-			id: "resend",
-			label: "Resend 发信域名",
-			status: config?.resendVerifiedAt ? "done" : "pending",
-			message: config?.resendVerifiedAt ? "域名已验证" : undefined,
-		},
-	];
-
+	const configs = await listDomainConfigs(env);
+	const providers = new Set(configs.map(config => config.sendProvider));
+	const routingConfigured = configs.length > 0 && configs.every(config => !!config.routingConfiguredAt);
+	const resendVerified = configs.length > 0 && configs.every(config => !!config.resendVerifiedAt);
 	return {
-		completed,
-		domains: config?.domains ?? [],
-		sendProvider: config?.sendProvider,
-		routingConfigured: !!config?.routingConfiguredAt,
-		resendVerified: !!config?.resendVerifiedAt,
-		steps,
+		completed: configs.length > 0,
+		domains: configs.map(config => config.domain),
+		domainConfigs: configs.map(domainConfigView),
+		sendProvider: providers.size === 1 ? configs[0].sendProvider : undefined,
+		routingConfigured,
+		resendVerified,
+		steps: [
+			{ id: "routing", label: "Cloudflare Email Routing", status: routingConfigured ? "done" : "pending" },
+			{ id: "resend", label: "Resend 发信域名", status: resendVerified ? "done" : "pending" },
+		],
 	};
 }
 
@@ -180,10 +172,14 @@ export async function validateCredentials(
 }
 
 export async function runSetup(env: Env, input: RunSetupInput): Promise<RunSetupResult> {
-	const existing = await getSetupConfig(env.BUCKET);
-	if (isSetupComplete(existing)) {
-		return { success: false, steps: [], error: "已完成初始化，如需重新配置请删除 R2 中的 config/setup.json" };
-	}
+	let domain: string;
+	let encryptedResendKey: Awaited<ReturnType<typeof encryptResendKey>>;
+	try {
+		domain = normalizeDomain(input.domain);
+		const existing = await getDomainConfig(env, domain);
+		if (existing && !input.reconfigure) return { success: false, steps: [], error: "This domain is already configured. Use Reconfigure to update it." };
+		encryptedResendKey = await encryptResendKey(env, domain, input.resendApiKey);
+	} catch (error) { return { success: false, steps: [], error: (error as Error).message }; }
 
 	const steps: SetupStep[] = [
 		{ id: "validate", label: "验证 API 凭证", status: "pending" },
@@ -204,13 +200,12 @@ export async function runSetup(env: Env, input: RunSetupInput): Promise<RunSetup
 		}
 	};
 
-	const domain = input.domain.trim().toLowerCase();
 
 	try {
 		setStep("validate", "running");
 		const validation = await validateCredentials(input.cloudflareToken, input.resendApiKey, domain);
 		if (!validation.valid) {
-			setStep("validate", "error", validation.cloudflare.message || validation.resend.message);
+			setStep("validate", "error", [!validation.cloudflare.ok && validation.cloudflare.message, !validation.resend.ok && validation.resend.message].filter(Boolean).join("; "));
 			return { success: false, steps, error: "API 凭证验证失败" };
 		}
 		setStep("validate", "done", "凭证有效");
@@ -220,7 +215,7 @@ export async function runSetup(env: Env, input: RunSetupInput): Promise<RunSetup
 		setStep("zone", "done", `Zone ID: ${zone.id}`);
 
 		setStep("routing", "running");
-		await enableEmailRouting(input.cloudflareToken, zone.id, domain);
+		await enableEmailRouting(input.cloudflareToken, zone.id);
 		setStep("routing", "done", "Email Routing 已启用");
 
 		setStep("catchall", "running");
@@ -253,21 +248,20 @@ export async function runSetup(env: Env, input: RunSetupInput): Promise<RunSetup
 
 		setStep("save", "running");
 		const now = new Date().toISOString();
-		const config: SetupConfig = {
-			completed: true,
-			domains: [domain],
+		const config = {
+			domain,
 			zoneId: zone.id,
-			sendProvider: "resend",
-			resendApiKey: input.resendApiKey,
+			sendProvider: "resend" as const,
+			encryptedResendKey,
 			resendDomainId: resendDomain.id,
 			routingConfiguredAt: now,
 			resendVerifiedAt: now,
 			configuredAt: now,
 		};
-		await saveSetupConfig(env.BUCKET, config);
+		await saveDomainConfig(env, config);
 		setStep("save", "done", "配置已保存");
 
-		return { success: true, steps, config: { ...config, resendApiKey: undefined } };
+		return { success: true, steps, config: domainConfigView(config) };
 	} catch (e) {
 		const message = e instanceof CloudflareApiError || e instanceof ResendApiError
 			? e.message

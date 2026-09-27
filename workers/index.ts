@@ -4,6 +4,7 @@
 
 import { aiConfigRoutes } from "./routes/ai-config";
 import { aiConfigStorageKey } from "./lib/ai-config";
+import { normalizeDomain } from "./lib/domain-config";
 import { type Context, Hono } from "hono";
 import { cors } from "hono/cors";
 import PostalMime from "postal-mime";
@@ -104,29 +105,24 @@ app.get("/api/v1/setup/status", async (c) => {
 	return c.json(await getSetupStatus(c.env));
 });
 
-app.post("/api/v1/setup/validate", async (c) => {
-	const { cloudflareToken, resendApiKey, domain } = (await c.req.json()) as {
-		cloudflareToken?: string;
-		resendApiKey?: string;
-		domain?: string;
-	};
-	if (!cloudflareToken || !resendApiKey) {
-		return c.json({ error: "请提供 Cloudflare Token 和 Resend API Key" }, 400);
-	}
-	return c.json(await validateCredentials(cloudflareToken, resendApiKey, domain));
+const SetupInput = z.object({
+	cloudflareToken: z.string().trim().min(1).max(4096),
+	resendApiKey: z.string().trim().min(1).max(4096),
+	domain: z.string().trim().min(1).max(253),
+	reconfigure: z.boolean().optional(),
 });
-
+app.post("/api/v1/setup/validate", async (c) => {
+	const parsed = SetupInput.safeParse(await c.req.json().catch(() => null));
+	if (!parsed.success) return c.json({ error: "Please fill in all fields" }, 400);
+	const { cloudflareToken, resendApiKey, domain } = parsed.data;
+	try { normalizeDomain(domain); } catch { return c.json({ error: "Enter a valid domain name without a URL or email address." }, 400); }
+	return c.json(await validateCredentials(cloudflareToken, resendApiKey, domain.toLowerCase()));
+});
 app.post("/api/v1/setup/run", async (c) => {
-	const { cloudflareToken, resendApiKey, domain } = (await c.req.json()) as {
-		cloudflareToken?: string;
-		resendApiKey?: string;
-		domain?: string;
-	};
-	if (!cloudflareToken || !resendApiKey || !domain) {
-		return c.json({ error: "请提供 Cloudflare Token、Resend API Key 和域名" }, 400);
-	}
+	const parsed = SetupInput.safeParse(await c.req.json().catch(() => null));
+	if (!parsed.success) return c.json({ error: "Please fill in all fields" }, 400);
 	const workerName = c.env.WORKER_NAME || "agentic-inbox";
-	const result = await runSetup(c.env, { cloudflareToken, resendApiKey, domain, workerName });
+	const result = await runSetup(c.env, { ...parsed.data, workerName });
 	return c.json(result, result.success ? 200 : 422);
 });
 
@@ -144,6 +140,8 @@ app.post("/api/v1/mailboxes", async (c) => {
 	if (allowedAddresses.length > 0 && !allowedAddresses.map((a) => a.toLowerCase()).includes(email)) {
 		return c.json({ error: "Mailbox creation is restricted to configured EMAIL_ADDRESSES" }, 403);
 	}
+	const configuredDomains = await getEffectiveDomains(c.env);
+	if (!configuredDomains.includes(email.split("@")[1])) return c.json({ error: "Configure this domain before creating its mailboxes." }, 403);
 	const key = `mailboxes/${email}.json`;
 	if (await c.env.BUCKET.head(key)) return c.json({ error: "Mailbox already exists" }, 409);
 	const defaultSettings = { fromName: name, forwarding: { enabled: false, email: "" }, signature: { enabled: false, text: "" }, autoReply: { enabled: false, subject: "", message: "" } };
@@ -392,22 +390,22 @@ async function streamToArrayBuffer(stream: ReadableStream, streamSize: number) {
 	return result;
 }
 
-async function receiveEmail(event: { raw: ReadableStream; rawSize: number }, env: Env, ctx: ExecutionContext) {
+async function receiveEmail(event: { raw: ReadableStream; rawSize: number; to?: string }, env: Env, ctx: ExecutionContext) {
 	const rawEmail = await streamToArrayBuffer(event.raw, event.rawSize);
 	const parsedEmail = await new PostalMime().parse(rawEmail);
 
-	if (!parsedEmail.to?.length || !parsedEmail.to[0].address) throw new Error("received email with empty to");
+	if (!event.to && (!parsedEmail.to?.length || !parsedEmail.to[0].address)) throw new Error("received email with empty to");
 
 	const allowedAddresses = ((env.EMAIL_ADDRESSES ?? []) as string[]).map((a) => a.toLowerCase());
-	const allRecipients = parsedEmail.to.map((t) => t.address?.toLowerCase()).filter(Boolean) as string[];
+	const allRecipients = (parsedEmail.to || []).map((t) => t.address?.toLowerCase()).filter(Boolean) as string[];
 	const ccRecipients = (parsedEmail.cc || []).map((e) => e.address?.toLowerCase()).filter(Boolean) as string[];
 	const bccRecipients = (parsedEmail.bcc || []).map((e) => e.address?.toLowerCase()).filter(Boolean) as string[];
 
-	let mailboxId: string | undefined;
+	let mailboxId = event.to?.toLowerCase();
 	if (allowedAddresses.length > 0) {
-		mailboxId = allRecipients.find((addr) => allowedAddresses.includes(addr));
-		if (!mailboxId) { console.log(`Ignoring email: no recipient matches EMAIL_ADDRESSES.`); return; }
-	} else { mailboxId = allRecipients[0]; }
+		mailboxId = mailboxId ? (allowedAddresses.includes(mailboxId) ? mailboxId : undefined) : allRecipients.find(addr => allowedAddresses.includes(addr));
+		if (!mailboxId) { console.log("Ignoring email: no recipient matches EMAIL_ADDRESSES."); return; }
+	} else { mailboxId ??= allRecipients[0]; }
 	if (!mailboxId) throw new Error("received email with no valid recipient address");
 
 	const messageId = crypto.randomUUID();

@@ -1,5 +1,5 @@
 import { useI18n } from "~/hooks/useI18n";
-import { EnvelopeSimpleIcon } from "@phosphor-icons/react";
+import MailLogo from "./MailLogo";
 import { Link } from "react-router";
 
 export default function MailBrand() {
@@ -12,7 +12,7 @@ export default function MailBrand() {
 			aria-label={t("Agentic Inbox — all mailboxes")}
 		>
 			<span className="mail-brand-icon">
-				<EnvelopeSimpleIcon size={30} weight="duotone" />
+				<MailLogo size={40} />
 			</span>
 			<span className="mail-brand-name">
 				{t("Inbox")}

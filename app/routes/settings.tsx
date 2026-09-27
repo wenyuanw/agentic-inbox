@@ -1,3 +1,4 @@
+import { InstallAppButton } from "~/components/PWAProvider";
 // Copyright (c) 2026 Cloudflare, Inc.
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 //     https://opensource.org/licenses/Apache-2.0
@@ -18,7 +19,7 @@ import {
 	DesktopIcon,
 } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
-import { useParams } from "react-router";
+import { useParams, Link } from "react-router";
 import { useMailbox, useUpdateMailbox } from "~/queries/mailboxes";
 import { useTheme } from "~/components/ThemeProvider";
 import type { ThemePreference } from "~/lib/theme";
@@ -112,7 +113,7 @@ export default function SettingsRoute() {
 
 	return (
 		<div className="mail-settings-page">
-			<h1 className="mail-settings-heading">{t("Settings")}</h1>
+			<div className="mail-settings-top"><h1 className="mail-settings-heading">{t("Settings")}</h1><div className="mail-setup-header-actions"><Link className="mail-domain-back" to="/domains">{t("Manage domains")}</Link><InstallAppButton /></div></div>
 
 			<div className="space-y-6">
 				<section className="mail-language-settings rounded-lg border border-kumo-line bg-kumo-base p-5">

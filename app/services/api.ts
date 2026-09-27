@@ -22,9 +22,10 @@ export class ApiError extends Error {
 async function request<T>(
 	url: string,
 	options: RequestInit = {},
+	timeoutMs = REQUEST_TIMEOUT_MS,
 ): Promise<T> {
 	const controller = new AbortController();
-	const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+	const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
 	// Combine caller signal (e.g. TanStack Query abort) with our timeout signal
 	const signal = options.signal
@@ -103,6 +104,7 @@ export interface SetupStep {
 export interface SetupStatus {
 	completed: boolean;
 	domains: string[];
+	domainConfigs: { domain: string; sendProvider: string; routingConfigured: boolean; resendVerified: boolean; hasApiKey: boolean; configuredAt?: string }[];
 	sendProvider?: string;
 	routingConfigured: boolean;
 	resendVerified: boolean;
@@ -133,8 +135,11 @@ const api = {
 	getSetupStatus: () => get<SetupStatus>("/api/v1/setup/status"),
 	validateSetup: (params: { cloudflareToken: string; resendApiKey: string; domain?: string }) =>
 		post<ValidateSetupResult>("/api/v1/setup/validate", params),
-	runSetup: (params: { cloudflareToken: string; resendApiKey: string; domain: string }) =>
-		post<RunSetupResult>("/api/v1/setup/run", params),
+	runSetup: (params: { cloudflareToken: string; resendApiKey: string; domain: string; reconfigure?: boolean }) =>
+		request<RunSetupResult>("/api/v1/setup/run", { method: "POST", body: JSON.stringify(params) }, 120_000).catch(error => {
+			if (error instanceof ApiError && error.status === 422 && error.body.success === false) return error.body as unknown as RunSetupResult;
+			throw error;
+		}),
 
 	// Mailboxes
 	listMailboxes: () => get<Mailbox[]>("/api/v1/mailboxes"),

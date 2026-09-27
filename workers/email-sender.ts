@@ -10,7 +10,7 @@
  */
 
 import { sendViaResend } from "./lib/resend-api";
-import { getSetupConfig } from "./lib/setup-config";
+import { getDomainConfig, resolveResendKey } from "./lib/domain-config";
 import type { Env } from "./types";
 
 export interface SendEmailParams {
@@ -76,14 +76,16 @@ export async function dispatchEmail(
 	env: Env,
 	params: SendEmailParams,
 ): Promise<{ messageId: string }> {
-	const setup = await getSetupConfig(env.BUCKET);
+	const address = (typeof params.from === "string" ? params.from : params.from.email).trim().toLowerCase();
+	const domain = address.slice(address.lastIndexOf("@") + 1);
+	const setup = await getDomainConfig(env, domain);
 
-	if (setup?.sendProvider === "resend" && setup.resendApiKey) {
+	if (setup?.sendProvider === "resend") {
 		const replyTo = typeof params.replyTo === "string"
 			? params.replyTo
 			: params.replyTo?.email;
 
-		const result = await sendViaResend(setup.resendApiKey, {
+		const result = await sendViaResend(await resolveResendKey(env, setup), {
 			to: params.to,
 			from: params.from,
 			subject: params.subject,

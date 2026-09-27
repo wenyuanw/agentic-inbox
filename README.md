@@ -134,3 +134,45 @@ Any user who passes the shared Cloudflare Access policy can access all mailboxes
 ## License
 
 Apache 2.0 -- see [LICENSE](LICENSE).
+
+## Install as a PWA
+
+Use **Install app** on the setup page, mailbox list, or mailbox settings. Chrome and
+Edge can show a native installation prompt when the site is eligible. On iPhone
+or iPad, open the site in Safari and choose **Share → Add to Home Screen**. A
+production deployment needs HTTPS; localhost also supports development testing.
+
+The service worker provides a bilingual offline retry page. Reading, sending,
+AI features, and configuration still require a connection. It does not cache
+mail content, credentials, API responses, or authenticated pages, and does not
+queue email sends. Installation does not enable notifications or background mail sync.
+
+Service worker updates show a refresh prompt; save open edits before accepting.
+Only the accepting tab reloads automatically. When changing `public/offline.html`,
+also increment the cache version in `public/sw.js` so installed clients receive
+an updated offline page. Verify cache and routing behavior with `npm run test:pwa`.
+
+## Multiple mail domains
+
+Open **Manage domains** from the mailbox list or mailbox settings. Use **Add domain**
+to configure another Cloudflare domain and its Resend key. Each domain can use a
+different Cloudflare user token and Resend account. Tokens must cover that domain;
+Resend setup requires Full Access. **Reconfigure** updates one domain after DNS and
+sending verification succeed. Existing mailboxes, mail, and other domain settings
+are preserved. The wizard changes live DNS and catch-all routing only when started.
+
+Each domain is stored independently under `config/domains/` in R2. New Resend keys
+are encrypted with the server's `AI_CONFIG_ENCRYPTION_KEY` (the same 32-byte master
+key used for AI credentials). Set this secret before configuring domains, and keep
+it stable. Existing `config/setup.json` single-domain configurations remain readable;
+reconfiguring a legacy domain writes its encrypted replacement without deleting mail.
+No plaintext credentials or encrypted key payloads are returned in domain status.
+
+Mailbox creation offers the configured domains. Incoming messages are assigned using
+Cloudflare's envelope recipient, including CC/BCC deliveries. Sending chooses the
+credentials for the sender's domain. Domains manually listed in `DOMAINS` continue
+to work; each needs its own routing and sending setup. Local configuration and mail
+storage are separate from production; real incoming mail still needs a deployed Worker.
+
+Run `npm run test:domains` for mocked routing, credential, compatibility and multi-domain
+mailbox checks. These tests do not modify external DNS or send actual email.
