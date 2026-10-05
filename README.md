@@ -31,20 +31,17 @@ Agentic Inbox 是一款采用 Gmail 风格布局的邮件客户端，可以通�
 - **AI**：[Cloudflare Agents SDK](https://developers.cloudflare.com/agents/)、[Workers AI](https://developers.cloudflare.com/workers-ai/)、AI SDK；可切换到 OpenAI 兼容服务、Anthropic 或 Gemini
 - **认证**：部署环境使用 Cloudflare Access；本地开发跳过 Access 校验
 
-```text
-┌────────────────┐     ┌─────────────────────┐     ┌─────────────────┐
-│ 浏览器         │────>│ Hono Worker         │────>│ MailboxDO       │
-│ React 邮件界面 │     │ 页面与 API          │     │ SQLite + R2     │
-│ AI 助手面板    │     │                     │     └─────────────────┘
-└───────┬────────┘     │ /agents/*           │────>┌─────────────────┐
-        │ WebSocket    │                     │     │ EmailAgent DO   │
-        └─────────────>│                     │     │ AIChatAgent     │
-                       └─────────────────────┘     └────────┬────────┘
-                                                            │
-                                                   Workers AI 或外部模型
+```mermaid
+flowchart LR
+    Browser["浏览器<br/>React 邮件界面与 AI 助手"] -->|页面与 API| Worker["Hono Worker<br/>页面、API、/agents/*"]
+    Worker --> Mailbox["Mailbox DO<br/>SQLite 与 R2 附件"]
+    Worker --> Agent["EmailAgent DO<br/>AIChatAgent"]
+    Agent --> Models["Workers AI 或外部模型"]
+    Browser -->|WebSocket| Worker
 
-外部发件人 ──> Cloudflare Email Routing ──> Worker ──> MailboxDO / 未配置邮件收件箱
-邮件客户端 / MCP ──> Worker ──> Resend ──> 外部收件人
+    Sender["外部发件人"] --> Routing["Cloudflare Email Routing"] --> Worker
+    Worker --> Unconfigured["未配置邮件收件箱"]
+    Client["邮件客户端 / MCP"] --> Worker --> Resend["Resend"] --> Recipient["外部收件人"]
 ```
 
 ## 开始使用
